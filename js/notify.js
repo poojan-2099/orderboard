@@ -1,4 +1,8 @@
-/* OrderBoard — WhatsApp notification via CallMeBot, plus on-screen alerts.
+/* OrderBoard — WhatsApp notification, plus on-screen alerts.
+
+   Three senders, picked in Settings: "edge" (Supabase Edge Function -> Meta
+   WhatsApp Cloud API), "callmebot" (the old free relay), and "off", where the
+   front desk taps a wa.me link instead. "off" needs no setup at all.
 
    How CallMeBot works: a plain GET request to their endpoint delivers a
    WhatsApp message to one pre-approved number. The endpoint does not send
@@ -12,6 +16,63 @@
   const ENDPOINT = "https://api.callmebot.com/whatsapp.php";
 
   const notify = {
+    /* Which sender to use:
+         "edge"      -> Supabase Edge Function -> Meta WhatsApp Cloud API
+         "callmebot" -> the old free relay (kept in case their new bot opens)
+         "off"       -> no automatic send; the front desk taps to send
+       Stored in the database so every screen agrees. */
+    provider() {
+      const p = (OB.db.appConfig || {}).wa_provider;
+      if (p) return p;
+      // The database may not have the wa_provider column yet (it arrived with the
+      // 2026-10-27 migration). Fall back to this device's own choice so picking
+      // a sender works straight away.
+      const local = (localStorage.getItem("ob_wa_provider") || "").trim();
+      if (local) return local;
+      // Still nothing: infer from whatever is configured.
+      if ((OB.db.appConfig || {}).wa_function_url) return "edge";
+      if (this.creds().phone && this.creds().key) return "callmebot";
+      return "off";
+    },
+
+    /* True when nothing sends by itself and the front desk taps a link. */
+    tapOnly() { return this.provider() === "off"; },
+
+    functionUrl() {
+      const c = OB.db.appConfig || {};
+      if (c.wa_function_url) return String(c.wa_function_url).trim();
+      // Default to this project's own function endpoint.
+      const base = OB.db.normalizeUrl(
+        localStorage.getItem("ob_sb_url") || OB_CONFIG.SUPABASE_URL || "");
+      return base ? base.replace(".supabase.co", ".functions.supabase.co") + "/notify-whatsapp" : "";
+    },
+
+    /* Ask the Edge Function to send. The browser passes only an order id —
+       the function looks the order up and sends to its own fixed number, so
+       nothing sensitive and no message text ever travels from the client. */
+    async sendViaEdge(payload) {
+      const url = this.functionUrl();
+      if (!url) return { ok: false, error: "No function URL configured" };
+      const key = (localStorage.getItem("ob_sb_key") || OB_CONFIG.SUPABASE_ANON || "").trim();
+      try {
+        const r = await fetch(url, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            apikey: key,
+            Authorization: "Bearer " + key
+          },
+          body: JSON.stringify(payload)
+        });
+        let data = {};
+        try { data = await r.json(); } catch (e) {}
+        if (!r.ok) return { ok: false, error: data.error || ("HTTP " + r.status), raw: data };
+        return Object.assign({ ok: true }, data);
+      } catch (e) {
+        return { ok: false, error: e.message };
+      }
+    },
+
     creds() {
       const c = OB.db.appConfig || {};
       // A per-device override wins, so you can test without touching the shop config.
@@ -22,8 +83,10 @@
     },
 
     configured() {
-      const c = this.creds();
-      return !!(c.phone && c.key);
+      const p = this.provider();
+      if (p === "edge") return !!this.functionUrl();
+      if (p === "callmebot") { const c = this.creds(); return !!(c.phone && c.key); }
+      return false;
     },
 
     buildUrl(text) {
@@ -37,7 +100,7 @@
     /* The message the front desk receives when an order is finished. */
     doneMessage(order) {
       const u = OB.util;
-      const shop = (OB.db.appConfig && OB.db.appConfig.shop_name) || "Order Board";
+      const shop = u.shopName();
       const lines = [];
       lines.push("✅ ORDER #" + order.order_no + " DONE");
       lines.push(shop);
@@ -88,7 +151,16 @@
     /* Send the "order done" message exactly once per order. */
     async sendOrderDone(order) {
       if (order.whatsapp_sent_at) return false;
-      if (!this.configured()) return false;
+      const p = this.provider();
+      if (p === "off" || !this.configured()) return false;
+
+      if (p === "edge") {
+        // The function stamps whatsapp_sent_at itself, so no second write here.
+        const r = await this.sendViaEdge({ order_id: order.id });
+        if (!r.ok) console.warn("[OB] whatsapp (edge) failed:", r.error, r.raw || "");
+        return !!r.ok;
+      }
+
       const ok = await this.send(this.doneMessage(order));
       if (ok) {
         try { await OB.db.markWhatsappSent(order.id); } catch (e) { console.warn(e); }
@@ -101,6 +173,8 @@
     waMeLink(order) {
       const c = this.creds();
       const num = (c.phone || "").replace(/[^\d]/g, "");
+      // With no number saved, wa.me still opens WhatsApp with the text ready and
+      // lets the sender pick the chat. Better than a dead link.
       return "https://wa.me/" + num + "?text=" +
              encodeURIComponent(this.doneMessage(order));
     },

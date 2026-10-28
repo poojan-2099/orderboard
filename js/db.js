@@ -13,15 +13,35 @@
 
     /* ---------- setup ---------- */
 
+    /* Supabase shows several URLs in the dashboard. The client wants the bare
+       project URL and adds "/rest/v1" itself, so pasting the Data API URL
+       (which already ends in /rest/v1) silently breaks every request. Strip
+       any API path and trailing slash so all of them work. */
+    normalizeUrl(u) {
+      return String(u || "").trim()
+        .replace(/\/+$/, "")
+        .replace(/\/(rest|auth|realtime|storage|functions)\/v\d+$/i, "")
+        .replace(/\/+$/, "");
+    },
+
     init() {
-      const url = (localStorage.getItem("ob_sb_url") || OB_CONFIG.SUPABASE_URL || "").trim();
+      const url = this.normalizeUrl(
+        localStorage.getItem("ob_sb_url") || OB_CONFIG.SUPABASE_URL || "");
       const key = (localStorage.getItem("ob_sb_key") || OB_CONFIG.SUPABASE_ANON || "").trim();
       if (!url || !key || typeof supabase === "undefined") {
         this.ready = false;
         return false;
       }
       this.client = supabase.createClient(url, key, {
-        realtime: { params: { eventsPerSecond: 5 } }
+        realtime: { params: { eventsPerSecond: 5 } },
+        auth: {
+          // Keep the staff signed in on this device and renew the token in the
+          // background, so a kitchen screen left on all day never drops out.
+          persistSession: true,
+          autoRefreshToken: true,
+          detectSessionInUrl: false,
+          storageKey: "ob_auth"
+        }
       });
       this.ready = true;
       return true;
@@ -45,6 +65,14 @@
     /* Live updates over websocket, with a polling fallback. */
     startLive() {
       if (!this.ready || this._channel) return;
+      /* Realtime is filtered by the same policies as the tables, so the socket
+         has to carry the staff token. supabase-js normally does this on its
+         own when the session loads; setting it here as well means the order of
+         boot steps cannot leave the socket unauthenticated. */
+      const tok = (OB.auth && OB.auth.token) || "";
+      if (tok && this.client.realtime && this.client.realtime.setAuth) {
+        try { this.client.realtime.setAuth(tok); } catch (e) { /* ignore */ }
+      }
       this._channel = this.client
         .channel("orderboard")
         .on("postgres_changes", { event: "*", schema: "public", table: "orders" },

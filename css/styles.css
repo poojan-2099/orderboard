@@ -101,6 +101,14 @@ h4 { font-size: .95rem; margin: 18px 0 6px; color: var(--text-dim);
 .conn { width: 9px; height: 9px; border-radius: 50%; background: var(--danger); }
 .conn.ok { background: #5fd38d; box-shadow: 0 0 0 3px rgba(95,211,141,.25); }
 
+.head-icon-btn {
+  width: 38px; height: 38px; border-radius: 50%;
+  border: 1.5px solid rgba(255,255,255,.45); background: transparent;
+  color: #fff; font-size: 1.1rem; line-height: 1; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.head-icon-btn:hover { background: rgba(255,255,255,.15); }
+
 .lang-toggle {
   min-width: 46px; padding: 7px 12px; border-radius: 999px;
   border: 1.5px solid rgba(255,255,255,.45); background: transparent;
@@ -193,6 +201,18 @@ select.input { appearance: none; background-image:
 .switch input:checked + .switch-ui { background: var(--accent); }
 .switch input:checked + .switch-ui::after { transform: translateX(20px); }
 .switch-text { font-weight: 600; font-size: .95rem; }
+
+.seg-wrap { flex-wrap: wrap; }
+.prov-pane { padding-top: 4px; }
+.callout {
+  padding: 10px 12px; border-radius: var(--radius-sm); margin-top: 8px;
+  background: var(--info-bg); font-size: .88rem; line-height: 1.5;
+}
+.test-out {
+  margin: 12px 0 0; padding: 12px 14px; border-radius: var(--radius-sm);
+  background: #2b2420; color: #f0e9e3; font-size: .78rem; line-height: 1.5;
+  white-space: pre-wrap; word-break: break-word; max-height: 320px; overflow: auto;
+}
 
 .seg { display: inline-flex; border: 1.5px solid var(--border); border-radius: 999px; overflow: hidden; }
 .seg-btn {
@@ -688,3 +708,62 @@ body.tv .board-col-body  { gap: clamp(10px, .8vw, 15px); padding: clamp(10px, .8
   body { background: #fff; }
   .card, .ocard, .desk-row { box-shadow: none; border-color: #ccc; }
 }
+
+/* ---------- kitchen → front desk share (tap-to-send mode) ---------- */
+.btn-share {
+  background: #25d366;            /* WhatsApp green, so it reads at TV distance */
+  color: #06331a;
+  border-color: #1faa53;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.btn-share:hover { background: #2ee676; }
+.share-sent { font-weight: 600; color: var(--ok); white-space: nowrap; }
+
+.share-box { text-align: center; display: grid; gap: 14px; }
+.share-order { font-size: 1.3rem; font-weight: 700; }
+.share-hint { margin: 0; color: var(--text-dim); line-height: 1.45; }
+.share-cta { width: 100%; font-size: 1.25rem; padding: 16px 20px; }
+
+/* ---------- sign-in gate ---------- */
+.login-wrap {
+  min-height: 70vh;
+  display: grid;
+  place-items: center;
+  padding: 24px 16px;
+}
+.login-card {
+  width: 100%;
+  max-width: 380px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 26px 22px;
+  display: grid;
+  gap: 14px;
+  box-shadow: var(--shadow-lg);
+}
+.login-logo { font-size: 2.6rem; text-align: center; line-height: 1; }
+.login-card h2 { margin: 0; text-align: center; font-size: 1.3rem; }
+.login-sub { margin: 0; text-align: center; color: var(--text-dim); font-size: .92rem; }
+.login-err {
+  background: var(--danger-bg);
+  border: 1px solid var(--danger);
+  color: var(--danger);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: .9rem;
+}
+.login-foot { text-align: center; font-size: .82rem; color: var(--text-dim); }
+.login-foot a { color: inherit; }
+.who-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.who-email { font-weight: 600; overflow-wrap: anywhere; }
+
+/* Nothing to navigate to until someone signs in. */
+body.signed-out #nav { display: none; }
+
+/* The unlock screen's single password box deserves to be easy to hit on a TV
+   remote keyboard or a tablet. */
+.input-lg { font-size: 1.15rem; padding: 14px 14px; letter-spacing: .08em; }

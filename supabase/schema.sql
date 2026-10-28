@@ -72,9 +72,13 @@ create index order_events_order_idx on order_events (order_id, created_at);
 -- ---------- app-wide settings (single row) ----------
 create table app_config (
   id               integer primary key default 1 check (id = 1),
+  -- which sender to use: 'edge' (Meta Cloud API via Edge Function),
+  -- 'callmebot' (the old free relay), or 'off' (front desk taps to send)
+  wa_provider      text default 'edge',
+  wa_function_url  text,
   whatsapp_phone   text,
   whatsapp_apikey  text,
-  shop_name        text default 'Sweet Shop',
+  shop_name        text default 'Malkits Sweets & Catering',
   default_lang     text default 'pa',
   updated_at       timestamptz not null default now()
 );
@@ -122,8 +126,13 @@ create trigger trg_log_status_change
 
 -- ============================================================
 --  Row Level Security
---  No login screen, so the public "anon" key is allowed full access.
---  See the Security section of README.md before going live.
+--
+--  Staff only. The site and its publishable key are public, so access is tied
+--  to a real Supabase session instead: "to authenticated" means Postgres
+--  rejects anything that does not carry one. The anon role gets nothing.
+--
+--  Create the staff accounts in Authentication -> Users, and leave
+--  "Allow new users to sign up" switched OFF so strangers cannot register.
 -- ============================================================
 
 alter table orders       enable row level security;
@@ -131,21 +140,21 @@ alter table order_items  enable row level security;
 alter table order_events enable row level security;
 alter table app_config   enable row level security;
 
-create policy anon_all_orders on orders
-  for all to anon using (true) with check (true);
-create policy anon_all_items on order_items
-  for all to anon using (true) with check (true);
-create policy anon_all_events on order_events
-  for all to anon using (true) with check (true);
-create policy anon_all_config on app_config
-  for all to anon using (true) with check (true);
+create policy staff_all_orders on orders
+  for all to authenticated using (true) with check (true);
+create policy staff_all_items on order_items
+  for all to authenticated using (true) with check (true);
+create policy staff_all_events on order_events
+  for all to authenticated using (true) with check (true);
+create policy staff_all_config on app_config
+  for all to authenticated using (true) with check (true);
 
 -- Supabase normally grants these automatically, but being explicit means this
 -- script also works on a project where those defaults were changed.
 grant usage on schema public to anon, authenticated;
 grant select, insert, update, delete
-  on orders, order_items, order_events, app_config to anon, authenticated;
-grant usage, select on all sequences in schema public to anon, authenticated;
+  on orders, order_items, order_events, app_config to authenticated;
+grant usage, select on all sequences in schema public to authenticated;
 
 -- ============================================================
 --  Realtime: push changes to every open screen instantly
@@ -182,6 +191,6 @@ select
 from orders o;
 
 -- The view is created after the grants above, so it needs its own.
-grant select on order_log to anon, authenticated;
+grant select on order_log to authenticated;
 
 -- Done. You should see "Success. No rows returned".

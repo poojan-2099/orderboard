@@ -37,6 +37,15 @@
 
     /* ---------- this screen's name, for "who did what" ---------- */
     station() { return localStorage.getItem("ob_station") || "Front Desk"; },
+
+    /* The shop name, from the database when we have it. Before sign-in the
+       database will not tell us anything, so config.js carries a copy purely
+       so the sign-in screen and the header are not blank. */
+    shopName() {
+      const fromDb = OB.db && OB.db.appConfig && OB.db.appConfig.shop_name;
+      const fromCfg = (typeof OB_CONFIG !== "undefined" && OB_CONFIG.SHOP_NAME) || "";
+      return fromDb || fromCfg || OB.i18n.t("appName");
+    },
     setStation(v) { localStorage.setItem("ob_station", v); },
 
     /* ---------- dates ---------- */

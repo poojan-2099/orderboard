@@ -62,7 +62,9 @@
     "#/board":    { view: () => OB.views.board,    key: "navBoard" },
     "#/desk":     { view: () => OB.views.desk,     key: "navDesk" },
     "#/log":      { view: () => OB.views.log,      key: "navLog" },
-    "#/settings": { view: () => OB.views.settings, key: "navSettings" }
+    // Reachable at #/settings and via the gear icon in the header, but kept off
+    // the navbar so kitchen staff can't wander into it by accident.
+    "#/settings": { view: () => OB.views.settings, key: "navSettings", offNav: true }
   };
 
   const router = {
@@ -76,6 +78,21 @@
     },
 
     mount() {
+      const main = u().$("#main");
+
+      /* Signed out: show the sign-in screen instead of any view. Settings is
+         the one exception, so a wrong database key can still be corrected
+         from the locked screen. */
+      if (OB.auth.gateActive() && location.hash !== "#/settings") {
+        this.current = "#/login";
+        document.body.classList.add("signed-out");
+        document.body.classList.remove("on-board");
+        OB.views.login.render(main);
+        u().$$("#nav a").forEach((a) => a.classList.remove("on"));
+        return;
+      }
+      document.body.classList.toggle("signed-out", OB.auth.gateActive());
+
       const hash = ROUTES[location.hash] ? location.hash : "#/board";
       // let the outgoing view clear its timers
       if (this.current && this.current !== hash) {
@@ -85,7 +102,6 @@
       }
       this.current = hash;
 
-      const main = u().$("#main");
       const v = ROUTES[hash].view();
       const arg = this._arg; this._arg = null;
 
@@ -108,9 +124,10 @@
      Chrome — header + nav
      ============================================================ */
   function renderChrome() {
-    const shop = (OB.db.appConfig && OB.db.appConfig.shop_name) || t("appName");
+    const shop = u().shopName();
 
-    const nav = u().el("nav", { id: "nav" }, Object.keys(ROUTES).map((h) =>
+    const navRoutes = Object.keys(ROUTES).filter((h) => !ROUTES[h].offNav);
+    const nav = u().el("nav", { id: "nav" }, navRoutes.map((h) =>
       u().el("a", { href: h, class: "navlink" }, [
         u().el("span", { text: t(ROUTES[h].key) }),
         u().el("span", { class: "nav-badge", id: "badge-" + h.slice(2) })
@@ -127,6 +144,11 @@
     head.appendChild(u().el("div", { class: "head-right" }, [
       u().el("span", { class: "conn " + (OB.db.ready ? "ok" : "bad"),
                        title: OB.db.ready ? t("connected") : t("notConnected") }),
+      u().el("button", {
+        class: "head-icon-btn", text: "⚙",
+        title: t("navSettings"), "aria-label": t("navSettings"),
+        onclick: () => { location.hash = "#/settings"; }
+      }),
       u().el("button", {
         class: "lang-toggle", text: OB.i18n.lang === "pa" ? "EN" : "ਪੰ",
         title: t("language"),
@@ -188,7 +210,13 @@
     if (localStorage.getItem("ob_tv") === "1") document.body.classList.add("tv");
 
     const ok = OB.db.init();
-    if (ok) {
+
+    // Who is at this screen? Everything below depends on it: with the login
+    // gate on, the database will refuse these reads until we have a session.
+    if (ok) await OB.auth.restore();
+    const locked = ok && OB.auth.gateActive();
+
+    if (ok && !locked) {
       await OB.db.loadAppConfig();
       OB.db.startLive();
       OB.db.onChange(u().debounce(() => store.refresh(), 400));

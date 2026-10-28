@@ -1,0 +1,472 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Order Board — Connection Check</title>
+<link rel="stylesheet" href="css/styles.css">
+<style>
+  .diag { max-width: 860px; margin: 0 auto; padding: 24px 18px 60px; }
+  .step { display: grid; grid-template-columns: 30px minmax(0,1fr); gap: 12px;
+          padding: 14px 16px; border: 1px solid var(--border); border-radius: var(--radius);
+          background: var(--surface); margin-bottom: 10px; box-shadow: var(--shadow); }
+  .step.pass { border-left: 4px solid var(--ok); }
+  .step.fail { border-left: 4px solid var(--danger); background: #fffafa; }
+  .step.warn { border-left: 4px solid var(--accent); background: #fffdf7; }
+  .step.skip { opacity: .6; }
+  .step-icon { font-size: 1.2rem; line-height: 1.4; }
+  .step-name { font-weight: 700; margin-bottom: 2px; }
+  .step-msg  { font-size: .93rem; }
+  .step-fix  { margin-top: 8px; padding: 10px 12px; border-radius: var(--radius-sm);
+               background: var(--warn-bg); font-size: .92rem; }
+  .step-fix b { color: var(--warn); }
+  pre.raw { margin: 8px 0 0; padding: 10px 12px; background: #2b2420; color: #f0e9e3;
+            border-radius: var(--radius-sm); font-size: .78rem; overflow-x: auto;
+            white-space: pre-wrap; word-break: break-all; }
+  .vals { font-family: ui-monospace, monospace; font-size: .85rem; }
+  .vals div { padding: 3px 0; }
+  .src { display: inline-block; padding: 1px 8px; border-radius: 999px;
+         font-size: .72rem; font-weight: 700; background: var(--info-bg); color: #27518c; }
+  .src.ls { background: var(--warn-bg); color: var(--warn); }
+  .verdict { padding: 18px; border-radius: var(--radius); margin-bottom: 18px;
+             font-size: 1.02rem; font-weight: 600; }
+  .verdict.pass { background: var(--ok-bg);     color: var(--ok); }
+  .verdict.fail { background: var(--danger-bg); color: var(--danger); }
+  .verdict.run  { background: var(--surface-2); color: var(--text-dim); }
+</style>
+</head>
+<body>
+<header id="appHead">
+  <div class="brand"><span class="logo">🩺</span><span class="brand-name">Connection Check</span></div>
+  <div class="head-right"><a class="btn btn-ghost btn-sm" href="index.html">← Back to app</a></div>
+</header>
+
+<div class="diag">
+  <div id="verdict" class="verdict run">Running checks…</div>
+  <div id="steps"></div>
+
+  <div class="card" style="margin-top:18px">
+    <h3>Shop password</h3>
+    <p class="muted small">The tables only answer an unlocked session now, so
+      these checks need the shop password too — the same one the app asks for.
+      Nothing is saved on this device; the session lives in this tab until you
+      close it.</p>
+    <div class="form-actions" style="margin-top:12px;gap:10px;flex-wrap:wrap">
+      <input class="input" type="password" id="diagPass" placeholder="shop password"
+             autocomplete="current-password" style="max-width:220px">
+      <button class="btn btn-primary" id="diagSignIn">Unlock &amp; re-run</button>
+    </div>
+    <p class="muted small" id="authNote" style="margin-top:10px"></p>
+  </div>
+
+  <div class="card" style="margin-top:18px">
+    <h3>Settings this page is using</h3>
+    <div class="vals" id="vals"></div>
+    <div class="form-actions" style="margin-top:14px">
+      <button class="btn btn-ghost" id="rerun">↻ Run again</button>
+      <button class="btn btn-ghost" id="writeTest">✍️ Test writing an order</button>
+      <button class="btn btn-ghost danger" id="clearLs">Clear this device's saved keys</button>
+    </div>
+    <p class="muted small" id="lsNote" style="margin-top:10px"></p>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3/dist/umd/supabase.js"></script>
+<script src="config.js"></script>
+<script>
+(function () {
+  const stepsEl   = document.getElementById("steps");
+  const verdictEl = document.getElementById("verdict");
+
+  /* Read config exactly the way the app does: a value saved on this device
+     through the Settings screen WINS over whatever is in config.js. */
+  const lsUrl = (localStorage.getItem("ob_sb_url") || "").trim();
+  const lsKey = (localStorage.getItem("ob_sb_key") || "").trim();
+  const cfUrl = ((window.OB_CONFIG || {}).SUPABASE_URL  || "").trim();
+  const cfKey = ((window.OB_CONFIG || {}).SUPABASE_ANON || "").trim();
+  const RAW_  = lsUrl || cfUrl;
+  const URL_  = RAW_.replace(/\/+$/, "")
+                    .replace(/\/(rest|auth|realtime|storage|functions)\/v\d+$/i, "")
+                    .replace(/\/+$/, "");
+  const KEY_  = lsKey || cfKey;
+
+  /* A staff access token, held in memory for this tab only. Every probe below
+     sends it when we have one, so the checks see exactly what the app sees. */
+  let TOKEN_ = "";
+
+  async function signIn(password) {
+    const email = ((window.OB_CONFIG || {}).ADMIN_EMAIL || "").trim();
+    if (!email) return { ok: false, error: "ADMIN_EMAIL is not set in config.js" };
+    try {
+      const res = await fetch(URL_ + "/auth/v1/token?grant_type=password", {
+        method: "POST",
+        headers: { apikey: KEY_, "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email, password: password })
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        return { ok: false, error: body.error_description || body.msg ||
+                                   body.error || ("HTTP " + res.status) };
+      }
+      TOKEN_ = body.access_token || "";
+      return { ok: !!TOKEN_, email: (body.user || {}).email || email,
+               error: TOKEN_ ? "" : "No token came back" };
+    } catch (e) {
+      return { ok: false, error: e.message || String(e) };
+    }
+  }
+
+  function mask(k) {
+    if (!k) return "(empty)";
+    if (k.length < 20) return k;
+    return k.slice(0, 14) + "…" + k.slice(-4) + "  (" + k.length + " chars)";
+  }
+
+  document.getElementById("vals").innerHTML =
+    '<div>URL &nbsp;<span class="src ' + (lsUrl ? "ls" : "") + '">' +
+      (lsUrl ? "from this device" : "from config.js") + "</span> &nbsp;" +
+      (URL_ || "<b>(empty)</b>") + "</div>" +
+    '<div>Key &nbsp;<span class="src ' + (lsKey ? "ls" : "") + '">' +
+      (lsKey ? "from this device" : "from config.js") + "</span> &nbsp;" + mask(KEY_) + "</div>";
+
+  if (RAW_ !== URL_) {
+    document.getElementById("vals").insertAdjacentHTML("beforeend",
+      '<div style="margin-top:8px;color:var(--warn)">\u26a0\ufe0f The saved URL ended in an API path ' +
+      '(<code>' + RAW_.slice(URL_.length) + '</code>). The app now trims that automatically, ' +
+      'but tidy it up in config.js so it reads just <code>' + URL_ + '</code></div>');
+  }
+
+  if (lsUrl || lsKey) {
+    document.getElementById("lsNote").innerHTML =
+      "⚠️ <b>This device has its own saved keys</b>, entered through the Settings screen. " +
+      "They override config.js — so editing config.js will not change anything here until " +
+      "you clear them with the red button above.";
+  } else {
+    document.getElementById("lsNote").textContent =
+      "This device is using config.js (nothing saved locally).";
+  }
+
+  function step(state, name, msg, fix, raw) {
+    const icon = { pass: "✅", fail: "❌", warn: "⚠️", skip: "⏭️" }[state];
+    const d = document.createElement("div");
+    d.className = "step " + state;
+    d.innerHTML =
+      '<div class="step-icon">' + icon + "</div><div>" +
+      '<div class="step-name">' + name + "</div>" +
+      '<div class="step-msg">' + msg + "</div>" +
+      (fix ? '<div class="step-fix">' + fix + "</div>" : "") +
+      (raw ? '<pre class="raw">' + String(raw).replace(/</g, "&lt;").slice(0, 900) + "</pre>" : "") +
+      "</div>";
+    stepsEl.appendChild(d);
+    return state;
+  }
+
+  /* Plain fetch so we see the real HTTP status, not a wrapped library error. */
+  async function call(path, opts) {
+    const o = opts || {};
+    const res = await fetch(URL_.replace(/\/+$/, "") + path, {
+      method: o.method || "GET",
+      headers: Object.assign({
+        apikey: KEY_,
+        Authorization: "Bearer " + (TOKEN_ || KEY_),
+        "Content-Type": "application/json"
+      }, o.headers || {}),
+      body: o.body ? JSON.stringify(o.body) : undefined
+    });
+    let text = "";
+    try { text = await res.text(); } catch (e) {}
+    return { status: res.status, ok: res.ok, text: text };
+  }
+
+  async function run() {
+    stepsEl.innerHTML = "";
+    verdictEl.className = "verdict run";
+    verdictEl.textContent = "Running checks…";
+    let failed = 0;
+    const F = () => { failed++; };
+
+    /* ---------- 1. served over http(s)? ---------- */
+    if (location.protocol === "file:") {
+      step("fail", "How this page was opened",
+        "You opened the file directly from your hard drive (<code>file://</code>). " +
+        "Browsers block database calls from there.",
+        "<b>Fix:</b> either publish to GitHub Pages, or run a local server:<br>" +
+        "<code>cd " + "orderboard && python3 -m http.server 8777</code><br>" +
+        "then open <code>http://localhost:8777/diagnose.html</code>");
+      F();
+    } else {
+      step("pass", "How this page was opened", "Served over " + location.protocol + " — good.");
+    }
+
+    /* ---------- 2. values present ---------- */
+    if (!URL_ || !KEY_) {
+      step("fail", "Keys present",
+        "Missing " + (!URL_ && !KEY_ ? "both the URL and the key" : !URL_ ? "the Project URL" : "the key") + ".",
+        "<b>Fix:</b> add them in <code>config.js</code>, or open the app's Settings screen and paste them there.");
+      F();
+      finish(failed); return;
+    }
+    step("pass", "Keys present", "Both a URL and a key were found.");
+
+    /* ---------- 3. URL shape ---------- */
+    if (!/^https:\/\/[a-z0-9-]+\.supabase\.(co|in)\/?$/i.test(URL_)) {
+      const looksLikeDash = /supabase\.com\/dashboard/i.test(URL_);
+      step("fail", "Project URL looks wrong", "Got: <code>" + URL_ + "</code>",
+        looksLikeDash
+          ? "<b>That's the dashboard address, not the API address.</b> Take the code after " +
+            "<code>/project/</code> in that link — if it is <code>abcdefgh</code>, your URL is " +
+            "<code>https://abcdefgh.supabase.co</code>"
+          : "<b>Fix:</b> it should look exactly like <code>https://abcdefgh.supabase.co</code> — " +
+            "no trailing slash, no <code>/rest/v1</code> on the end.");
+      F();
+    } else {
+      step("pass", "Project URL shape", "<code>" + URL_ + "</code>");
+    }
+
+    /* ---------- 4. key shape ---------- */
+    if (/^sb_secret_/i.test(KEY_) || /service_role/i.test(KEY_)) {
+      step("fail", "Wrong key type — security risk",
+        "This looks like a <b>secret / service_role</b> key.",
+        "<b>Remove it right now.</b> That key bypasses every security rule, and if you push it " +
+        "to GitHub anyone can read and delete your data. Use the <b>Publishable key</b> " +
+        "(<code>sb_publishable_…</code>) or the legacy <b>anon public</b> key instead. " +
+        "Then go to Settings → API Keys in Supabase and roll/revoke the secret key.");
+      F();
+    } else if (/^sb_publishable_/i.test(KEY_)) {
+      step("pass", "Key type", "Publishable key — correct.");
+    } else if (/^eyJ/.test(KEY_)) {
+      let role = "";
+      try { role = JSON.parse(atob(KEY_.split(".")[1])).role || ""; } catch (e) {}
+      if (role === "service_role") {
+        step("fail", "Wrong key type — security risk",
+          "This is the legacy <b>service_role</b> key.",
+          "<b>Remove it right now.</b> It bypasses all security rules. Use the row marked " +
+          "<code>anon</code> <code>public</code> instead, and rotate this one in Supabase.");
+        F();
+      } else {
+        step("pass", "Key type", "Legacy anon/public key" + (role ? " (role: " + role + ")" : "") + " — fine.");
+      }
+    } else {
+      step("warn", "Key type", "Unrecognised format — it may be truncated or have stray spaces.",
+        "Copy it again with the copy button in Supabase rather than selecting it by hand.");
+    }
+
+    /* ---------- 5. can we reach the project at all? ---------- */
+    let reach;
+    try {
+      // NB: never probe "/rest/v1/" here — that root is restricted to the
+      // service_role key and 401s for a perfectly good anon/publishable key,
+      // which looks like a key failure when nothing is wrong. The auth health
+      // endpoint needs no privileges and just proves the project is awake.
+      reach = await call("/auth/v1/health");
+    } catch (e) {
+      step("fail", "Reaching your project", "The browser could not connect at all.",
+        "<b>Usually one of:</b><br>" +
+        "• the Project URL is wrong (typo in the project code)<br>" +
+        "• your Supabase project is <b>paused</b> — open supabase.com, pick the project, " +
+        "and click <b>Restore</b><br>" +
+        "• no internet on this device", e && e.message);
+      F();
+      finish(failed); return;
+    }
+
+    if (reach.status >= 500) {
+      step("fail", "Reaching your project", "HTTP " + reach.status + " — the project is not answering.",
+        "<b>Most likely your project is paused.</b> Free Supabase projects pause after 7 days " +
+        "idle. Open supabase.com → your project → <b>Restore</b>. Your data is safe.", reach.text);
+      F();
+      finish(failed); return;
+    }
+    step("pass", "Reaching your project", "HTTP " + reach.status + " — the project answered.");
+
+    /* ---------- 5b. signed in? ---------- */
+    if (TOKEN_) {
+      step("pass", "Shop password", "Unlocked \u2014 the checks below run the way the app does.");
+    } else {
+      step("warn", "Shop password", "This page is locked.",
+        "If the tables come back as <b>permission denied</b> below, that is why. " +
+        "Use the <b>Shop password</b> box lower down.");
+    }
+
+    /* ---------- 6. do the tables exist? ---------- */
+    const tables = ["orders", "order_items", "order_events", "app_config"];
+    let missing = [], rejected = null, needsLogin = null;
+    for (const tb of tables) {
+      const r = await call("/rest/v1/" + tb + "?select=*&limit=1");
+      // Two different 401s look alike. "Invalid API key" means the key is
+      // wrong; "permission denied" means the key is fine but the tables are
+      // staff-only and nobody has signed in.
+      if (/invalid api key/i.test(r.text)) { rejected = r.text; break; }
+      if ((r.status === 401 || r.status === 403 || /permission denied|42501/i.test(r.text))
+          && !TOKEN_) { needsLogin = r.text; break; }
+      if (r.status === 401) { rejected = r.text; break; }
+      if (r.status === 404 || /does not exist|could not find the table/i.test(r.text)) missing.push(tb);
+      else if (!r.ok && r.status !== 206) missing.push(tb + " (HTTP " + r.status + ")");
+    }
+    if (needsLogin !== null) {
+      step("fail", "Database tables", "The database refused to show them: <b>permission denied</b>.",
+        "<b>This is the security working, not a fault.</b> The tables only answer an " +
+        "unlocked session. Type the shop password in the <b>Shop password</b> box " +
+        "below and press <b>Unlock &amp; re-run</b>.<br><br>" +
+        "If the shop account does not exist yet: Supabase \u2192 <b>Authentication \u2192 " +
+        "Users \u2192 Add user</b>, using the email in <code>ADMIN_EMAIL</code>, with " +
+        "<b>Auto Confirm User</b> ticked.", needsLogin);
+      F();
+      missing = tables.slice();
+    } else if (rejected !== null) {
+      step("fail", "Your key was rejected", "The server returned <b>Invalid API key</b>.",
+        "<b>Fix:</b> in Supabase open <b>Settings → API Keys</b> and use the copy button next " +
+        "to the <b>Publishable key</b> (<code>sb_publishable_…</code>). If you are using a legacy " +
+        "<code>anon</code> key and it is refused, this project has legacy keys switched off — " +
+        "use the publishable key instead.", rejected);
+      F();
+      missing = tables.slice();
+    } else if (missing.length) {
+      step("fail", "Database tables", "Missing or unreadable: <b>" + missing.join(", ") + "</b>",
+        "<b>The schema has not been run yet.</b> In Supabase open <b>SQL Editor → New query</b>, " +
+        "paste the entire contents of <code>supabase/schema.sql</code>, and press <b>Run</b>. " +
+        "You should see <i>“Success. No rows returned.”</i>");
+      F();
+    } else {
+      step("pass", "Database tables", "All four tables exist and are readable.");
+    }
+
+    /* ---------- 7. the exact query the kitchen board runs ---------- */
+    if (!missing.length) {
+      const since = new Date(Date.now() - 36 * 3600 * 1000).toISOString().replace(/\.\d{3}Z$/, "Z");
+      const q = "/rest/v1/orders?select=" + encodeURIComponent("*,order_items(*),order_events(*)") +
+                "&or=" + encodeURIComponent('(status.in.(new,cooking),completed_at.gte."' + since + '")') +
+                "&order=urgent.desc,due_date.asc,due_time.asc.nullsfirst,order_no.asc";
+      const r = await call(q);
+      if (r.ok) {
+        let n = "?"; try { n = JSON.parse(r.text).length; } catch (e) {}
+        step("pass", "Kitchen board query", "Works — returned " + n + " active order(s).");
+      } else {
+        step("fail", "Kitchen board query", "HTTP " + r.status,
+          "The tables exist but this query was refused. Send me the error text below.", r.text);
+        F();
+      }
+    } else {
+      step("skip", "Kitchen board query", "Skipped — tables missing.");
+    }
+
+    /* ---------- 8. is app_config seeded? ---------- */
+    if (!missing.length) {
+      const r = await call("/rest/v1/app_config?select=*&id=eq.1");
+      let rows = []; try { rows = JSON.parse(r.text); } catch (e) {}
+      if (r.ok && rows.length) step("pass", "Settings row", "Found — WhatsApp settings can be saved.");
+      else if (r.ok) {
+        step("warn", "Settings row", "The app_config table is empty.",
+          "<b>Fix:</b> run this in the Supabase SQL editor:<br>" +
+          "<code>insert into app_config (id) values (1);</code>");
+      } else { step("fail", "Settings row", "HTTP " + r.status, "", r.text); F(); }
+    } else { step("skip", "Settings row", "Skipped — tables missing."); }
+
+    /* ---------- 9. realtime ---------- */
+    if (!missing.length && typeof supabase !== "undefined") {
+      const state = await new Promise((resolve) => {
+        let done = false;
+        const t = setTimeout(() => { if (!done) { done = true; resolve("TIMED_OUT"); } }, 6000);
+        try {
+          const c = supabase.createClient(URL_, KEY_);
+          // Realtime respects the same policies, so it needs the staff token.
+          if (TOKEN_ && c.realtime && c.realtime.setAuth) c.realtime.setAuth(TOKEN_);
+          c.channel("ob-diagnose-" + Date.now())
+           .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => {})
+           .subscribe((s) => {
+             if (!done && (s === "SUBSCRIBED" || s === "CHANNEL_ERROR" || s === "TIMED_OUT")) {
+               done = true; clearTimeout(t); resolve(s);
+             }
+           });
+        } catch (e) { clearTimeout(t); resolve("ERROR: " + e.message); }
+      });
+      if (state === "SUBSCRIBED") {
+        step("pass", "Live updates", "Connected — screens will update instantly.");
+      } else {
+        step("warn", "Live updates", "Could not subscribe (" + state + ").",
+          "Not fatal: the app falls back to refreshing every " +
+          ((window.OB_CONFIG || {}).POLL_SECONDS || 15) + " seconds. To enable instant updates, " +
+          "re-run the last section of <code>supabase/schema.sql</code> " +
+          "(the <code>alter publication supabase_realtime</code> lines).");
+      }
+    } else { step("skip", "Live updates", "Skipped."); }
+
+    finish(failed);
+  }
+
+  function finish(failed) {
+    if (failed === 0) {
+      verdictEl.className = "verdict pass";
+      verdictEl.innerHTML = "✅ Everything works. Open the app and save a real order.";
+    } else {
+      verdictEl.className = "verdict fail";
+      verdictEl.innerHTML = "❌ " + failed + " problem" + (failed > 1 ? "s" : "") +
+        " found. Fix the red items above (top one first), then press <b>Run again</b>.";
+    }
+  }
+
+  /* ---------- optional write test ---------- */
+  document.getElementById("writeTest").addEventListener("click", async function () {
+    this.disabled = true;
+    const box = document.createElement("div");
+    stepsEl.appendChild(box);
+    try {
+      const c = await call("/rest/v1/orders", {
+        method: "POST",
+        headers: { Prefer: "return=representation" },
+        body: { customer_name: "CONNECTION TEST — safe to delete",
+                order_date: new Date().toISOString().slice(0, 10),
+                due_date: new Date().toISOString().slice(0, 10),
+                created_by: "diagnose.html" }
+      });
+      if (!c.ok) {
+        step("fail", "Write test", "Could not create an order (HTTP " + c.status + ").",
+          /row-level security/i.test(c.text)
+            ? "<b>Row Level Security is blocking writes.</b> The policies did not get created. " +
+              "Re-run <code>supabase/schema.sql</code> in full — especially the " +
+              "<code>create policy</code> section."
+            : "See the raw error below.", c.text);
+        return;
+      }
+      const row = JSON.parse(c.text)[0];
+      const d = await call("/rest/v1/orders?id=eq." + row.id, { method: "DELETE" });
+      step("pass", "Write test",
+        "Created test order #" + row.order_no + " and deleted it again" +
+        (d.ok ? "" : " (delete returned HTTP " + d.status + " — remove it by hand in the app's History)") +
+        ". <b>Saving orders works.</b>");
+    } catch (e) {
+      step("fail", "Write test", "Threw: " + e.message);
+    }
+  });
+
+  document.getElementById("rerun").addEventListener("click", run);
+
+  document.getElementById("diagSignIn").addEventListener("click", async function () {
+    const btn  = this;
+    const note = document.getElementById("authNote");
+    const pw   = document.getElementById("diagPass").value;
+    if (!pw) { note.textContent = "Type the shop password first."; return; }
+    btn.disabled = true; btn.textContent = "Unlocking\u2026";
+    const r = await signIn(pw);
+    btn.disabled = false; btn.textContent = "Unlock & re-run";
+    if (r.ok) {
+      note.innerHTML = "\u2705 Unlocked as <b>" + r.email + "</b> for this tab. Re-running\u2026";
+      document.getElementById("diagPass").value = "";
+      await run();
+    } else {
+      note.innerHTML = "\u274c " + String(r.error).replace(/</g, "&lt;");
+    }
+  });
+
+  document.getElementById("clearLs").addEventListener("click", function () {
+    localStorage.removeItem("ob_sb_url");
+    localStorage.removeItem("ob_sb_key");
+    alert("Cleared. This device will now use config.js. Reloading…");
+    location.reload();
+  });
+
+  run();
+})();
+</script>
+</body>
+</html>

@@ -158,27 +158,56 @@
         u().el("div", { class: "dr-due" + (overdue ? " bad" : ""),
           text: t("due") + ": " + u().fmtDate(o.due_date) +
                 (o.due_time ? " " + u().fmtTime(o.due_time) : "") }),
-        o.status === "done"
-          ? u().el("div", { class: "dr-wa" }, [
-              o.whatsapp_sent_at
-                ? u().el("span", { class: "ok-text", text: "✓ " + t("waSent") })
-                : u().el("button", {
-                    class: "btn btn-sm btn-primary", text: t("resendWa"),
-                    onclick: async (e) => {
-                      e.target.disabled = true;
-                      const ok = await OB.notify.sendOrderDone(o);
-                      u().toast(ok ? t("waSent") : t("waNotSent"), ok ? "success" : "error");
-                      await OB.store.refresh();
-                    }
-                  }),
-              u().el("a", {
-                class: "btn btn-sm btn-ghost", target: "_blank", rel: "noopener",
-                href: OB.notify.waMeLink(o), text: t("openWhatsApp")
-              })
-            ])
-          : null
+        o.status === "done" ? waCell(o) : null
       ])
     ]);
+  }
+
+  /* The WhatsApp corner of a finished order.
+
+     In "off" mode nothing sends by itself, so the only control is the wa.me
+     link — tapping it opens WhatsApp with the message already written, and we
+     stamp the order as sent so the row settles to a tick instead of nagging
+     forever. With a real sender configured, the retry button comes back. */
+  function waCell(o) {
+    if (o.whatsapp_sent_at) {
+      return u().el("div", { class: "dr-wa" }, [
+        u().el("span", { class: "ok-text", text: "✓ " + t("waSent") })
+      ]);
+    }
+
+    const tap = OB.notify.tapOnly();
+    const link = u().el("a", {
+      class: "btn btn-sm " + (tap ? "btn-primary" : "btn-ghost"),
+      target: "_blank", rel: "noopener",
+      href: OB.notify.waMeLink(o),
+      text: tap ? "📲 " + t("openWhatsApp") : t("openWhatsApp"),
+      onclick: () => {
+        if (!tap || !OB.db.ready) return;
+        // Let the link open first, then record it.
+        setTimeout(async () => {
+          try {
+            await OB.db.markWhatsappSent(o.id, "Sent by hand from Front Desk");
+            await OB.store.refresh();
+          } catch (e) { console.warn("[OB] could not stamp whatsapp_sent_at", e); }
+        }, 0);
+      }
+    });
+
+    const kids = [];
+    if (!tap) {
+      kids.push(u().el("button", {
+        class: "btn btn-sm btn-primary", text: t("resendWa"),
+        onclick: async (e) => {
+          e.target.disabled = true;
+          const ok = await OB.notify.sendOrderDone(o);
+          u().toast(ok ? t("waSent") : t("waNotSent"), ok ? "success" : "error");
+          await OB.store.refresh();
+        }
+      }));
+    }
+    kids.push(link);
+    return u().el("div", { class: "dr-wa" }, kids);
   }
 
   /* ---------- announce new things on this device ---------- */

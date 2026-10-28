@@ -187,6 +187,7 @@
           u().el("span", { class: "done-stamp",
             text: "✓ " + u().fmtDateTime(o.completed_at) +
                   (o.completed_by ? " · " + o.completed_by : "") }),
+          shareAction(o),
           bigBtn(t("reopen"), "btn-ghost", () => setStatus(o, "cooking"))
         ]
       )
@@ -205,9 +206,14 @@
       if (status === "done") {
         u().beep(1);
         const fresh = (await OB.db.fetchOne(o.id)) || o;
-        const sent = await OB.notify.sendOrderDone(fresh);
-        u().toast(sent ? t("waSent") : (OB.notify.configured() ? t("waNotSent") : t("stDone")),
-                  sent ? "success" : "info");
+        if (OB.notify.tapOnly()) {
+          // Nothing sends by itself, so the kitchen hands it over from here.
+          shareModal(fresh);
+        } else {
+          const sent = await OB.notify.sendOrderDone(fresh);
+          u().toast(sent ? t("waSent") : (OB.notify.configured() ? t("waNotSent") : t("stDone")),
+                    sent ? "success" : "info");
+        }
       }
       await OB.store.refresh();
     } catch (e) {
@@ -215,6 +221,55 @@
       OB.db.queue("setStatus", [o.id, status, u().station()]);
       u().toast(t("offline"), "warn");
     }
+  }
+
+  /* ---------- hand the finished order to the front desk ----------
+
+     Only in "tap to send" mode. It has to be a real <a> the staff member
+     taps: opening a window from inside an async callback gets blocked as a
+     popup on iPad, while a link tap is a genuine user gesture. Tapping it
+     also stamps whatsapp_sent_at so the order stops asking. */
+
+  function waLink(o, cls, label) {
+    return u().el("a", {
+      class: cls, href: OB.notify.waMeLink(o),
+      target: "_blank", rel: "noopener", text: label,
+      onclick: () => {
+        if (!OB.db.ready) return;
+        setTimeout(async () => {
+          try {
+            await OB.db.markWhatsappSent(o.id, "Shared to front desk from the kitchen");
+            await OB.store.refresh();
+          } catch (e) { console.warn("[OB] could not stamp whatsapp_sent_at", e); }
+        }, 0);
+      }
+    });
+  }
+
+  /* Shown on every finished order until it has actually been passed on — in
+     any sending mode. With the Meta sender the message normally goes by itself
+     and this turns into the tick on its own; if that send ever fails, the
+     button is still sitting there to do it by hand. */
+  function shareAction(o) {
+    if (o.whatsapp_sent_at) {
+      return u().el("span", { class: "share-sent",
+                              text: "\ud83d\udcf2 " + t("shareSent") });
+    }
+    return waLink(o, "btn btn-big btn-share", "\ud83d\udcf2 " + t("shareWa"));
+  }
+
+  function shareModal(o) {
+    const body = u().el("div", { class: "share-box" }, [
+      u().el("div", { class: "share-order",
+        text: "#" + o.order_no + "  \u00b7  " + (o.customer_name || "") }),
+      u().el("p", { class: "share-hint", text: t("shareHint") }),
+      waLink(o, "btn btn-big btn-share share-cta",
+             "\ud83d\udcf2 " + t("shareWa"))
+    ]);
+    const close = u().modal(t("shareTitle"), body,
+                            [{ label: t("notNow"), class: "btn-ghost" }]);
+    // Tapping the link navigates away to WhatsApp; drop the modal behind it.
+    body.querySelector("a").addEventListener("click", () => setTimeout(close, 300));
   }
 
   function commentModal(o) {
