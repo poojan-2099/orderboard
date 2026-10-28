@@ -749,6 +749,7 @@ body.tv .board-col-body  { gap: clamp(10px, .8vw, 15px); padding: clamp(10px, .8
 .login-card h2 { margin: 0; text-align: center; font-size: 1.3rem; }
 .login-sub { margin: 0; text-align: center; color: var(--text-dim); font-size: .92rem; }
 .login-err {
+  white-space: pre-line;
   background: var(--danger-bg);
   border: 1px solid var(--danger);
   color: var(--danger);

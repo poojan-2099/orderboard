@@ -54,10 +54,17 @@
     container.appendChild(u().el("div", { class: "login-wrap" }, [form]));
   }
 
-  /* Supabase's wording is accurate but terse; say what to do about it. */
+  /* Supabase's wording is accurate but terse; say what to do about it.
+
+     "Invalid login credentials" covers two very different problems: a wrong
+     password, and an account that does not exist under the email this app
+     signs in with. Naming that email is the difference between a two-minute
+     fix and an evening of retyping a password that was never wrong. */
   function explain(r) {
     const m = String(r.error || "");
-    if (/invalid login credentials/i.test(m)) return t("unlockBad");
+    if (/invalid login credentials/i.test(m)) {
+      return t("unlockBad") + "\n\n" + t("unlockAccount") + " " + OB.auth.adminEmail();
+    }
     if (/email not confirmed/i.test(m)) return t("unlockUnconfirmed");
     if (/rate|too many/i.test(m)) return t("unlockTooMany");
     if (/failed to fetch|network/i.test(m)) return t("unlockOffline");
