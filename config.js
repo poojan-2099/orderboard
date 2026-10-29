@@ -14,8 +14,8 @@
                    "Legacy API keys" tab, called "anon" / "public"
                    (a long string starting with eyJ...). Either one works.
                    NEVER use the "secret" or "service_role" key here.
-   Then commit this file. These two values are designed to be
-   public (see README > Security).
+   Then commit this file. These two values are designed to be public: the
+   database only lets a signed-in user read or write anything.
    ============================================================ */
 
 window.OB_CONFIG = {

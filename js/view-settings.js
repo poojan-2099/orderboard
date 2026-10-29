@@ -51,7 +51,7 @@
         /* ---- Meta Cloud API ---- */
         u().el("div", { id: "paneEdge", class: "prov-pane" }, [
           u().el("p", { class: "muted small",
-            text: "The official WhatsApp Business API. Your Meta token stays secret inside a Supabase Edge Function \u2014 it is never in the website. Follow \"Step 4\" in README.md to set it up." }),
+            text: "The official WhatsApp Business API. Your Meta token stays secret inside a Supabase Edge Function \u2014 it is never in the website. Setup steps are in SETUP-NOTES.md on the shop computer." }),
           fld("Edge Function URL", u().el("input", {
             class: "input", type: "url", id: "waFnUrl",
             placeholder: OB.notify.functionUrl() || "https://xxxx.functions.supabase.co/notify-whatsapp",

@@ -1,7 +1,6 @@
 /* OrderBoard — the unlock screen. One password for the whole site; the account
    it belongs to is fixed in config.js, so nobody has to remember a username.
-   Settings stays reachable from here so a wrong database key can still be
-   fixed on a locked screen. */
+   Nothing else is reachable from here, Settings included. */
 (function () {
   const OB = (window.OB = window.OB || {});
   const u = () => OB.util;

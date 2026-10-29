@@ -62,8 +62,8 @@
     "#/board":    { view: () => OB.views.board,    key: "navBoard" },
     "#/desk":     { view: () => OB.views.desk,     key: "navDesk" },
     "#/log":      { view: () => OB.views.log,      key: "navLog" },
-    // Reachable at #/settings and via the gear icon in the header, but kept off
-    // the navbar so kitchen staff can't wander into it by accident.
+    // Reachable via the gear icon in the header once unlocked, but kept off the
+    // navbar so kitchen staff can't wander into it by accident.
     "#/settings": { view: () => OB.views.settings, key: "navSettings", offNav: true }
   };
 
@@ -80,10 +80,11 @@
     mount() {
       const main = u().$("#main");
 
-      /* Signed out: show the sign-in screen instead of any view. Settings is
-         the one exception, so a wrong database key can still be corrected
-         from the locked screen. */
-      if (OB.auth.gateActive() && location.hash !== "#/settings") {
+      /* Locked: show the unlock screen instead of any view, Settings included.
+         First-run setup still works, because the gate only closes once a
+         database is configured — with no URL or key, gateActive() is false
+         and #/settings is reachable. */
+      if (OB.auth.gateActive()) {
         this.current = "#/login";
         document.body.classList.add("signed-out");
         document.body.classList.remove("on-board");
@@ -141,14 +142,22 @@
       u().el("span", { class: "brand-name", text: shop })
     ]));
     head.appendChild(nav);
-    head.appendChild(u().el("div", { class: "head-right" }, [
+
+    /* The gear only appears once the screen is unlocked — there is nothing a
+       locked screen can usefully change, and the database would refuse every
+       write it offers anyway. */
+    const right = [
       u().el("span", { class: "conn " + (OB.db.ready ? "ok" : "bad"),
-                       title: OB.db.ready ? t("connected") : t("notConnected") }),
-      u().el("button", {
+                       title: OB.db.ready ? t("connected") : t("notConnected") })
+    ];
+    if (!OB.auth.gateActive()) {
+      right.push(u().el("button", {
         class: "head-icon-btn", text: "⚙",
         title: t("navSettings"), "aria-label": t("navSettings"),
         onclick: () => { location.hash = "#/settings"; }
-      }),
+      }));
+    }
+    head.appendChild(u().el("div", { class: "head-right" }, right.concat([
       u().el("button", {
         class: "lang-toggle", text: OB.i18n.lang === "pa" ? "EN" : "ਪੰ",
         title: t("language"),
@@ -158,7 +167,7 @@
           router.mount();
         }
       })
-    ]));
+    ])));
 
     u().$$("#nav a").forEach((a) =>
       a.classList.toggle("on", a.getAttribute("href") === router.current));
