@@ -1,66 +1,70 @@
 /* OrderBoard — bilingual sweets / snacks catalog and units.
    Add your own items at the bottom of SWEETS — "fav: true" puts an
-   item on the Quick Pick buttons on the order form. */
+   item on the Quick Pick buttons on the order form.
+   "alias" lists other spellings customers use in WhatsApp messages
+   (laddu / burfi / pakoda…) so a pasted message still finds the item.
+   "unit" is the default unit when a message gives only a number
+   (e.g. "20 samosa" means 20 pieces; everything else defaults to lb). */
 (function () {
   const SWEETS = [
     // --- ladoo family ---
-    { en: "Besan Ladoo",       pa: "ਬੇਸਨ ਲੱਡੂ",        fav: true },
-    { en: "Boondi Ladoo",      pa: "ਬੂੰਦੀ ਲੱਡੂ",        fav: true },
-    { en: "Motichoor Ladoo",   pa: "ਮੋਤੀਚੂਰ ਲੱਡੂ" },
-    { en: "Atta Ladoo",        pa: "ਆਟਾ ਲੱਡੂ" },
-    { en: "Gond Ladoo",        pa: "ਗੋਂਦ ਲੱਡੂ" },
+    { en: "Besan Ladoo",       pa: "ਬੇਸਨ ਲੱਡੂ", alias: ["besan laddu","besan ladu","besan ke ladoo"],        fav: true },
+    { en: "Boondi Ladoo",      pa: "ਬੂੰਦੀ ਲੱਡੂ", alias: ["bundi ladoo","boondi laddu","bundi laddu","boondi"],        fav: true },
+    { en: "Motichoor Ladoo",   pa: "ਮੋਤੀਚੂਰ ਲੱਡੂ", alias: ["motichur ladoo","motichoor laddu","motichoor"] },
+    { en: "Atta Ladoo",        pa: "ਆਟਾ ਲੱਡੂ", alias: ["aata ladoo","atte ke ladoo"] },
+    { en: "Gond Ladoo",        pa: "ਗੋਂਦ ਲੱਡੂ", alias: ["gond laddu","gond ke ladoo","gond"] },
     { en: "Coconut Ladoo",     pa: "ਨਾਰੀਅਲ ਲੱਡੂ" },
 
     // --- jamun / syrup sweets ---
-    { en: "Gulab Jamun",       pa: "ਗੁਲਾਬ ਜਾਮਨ",       fav: true },
-    { en: "Kala Jamun",        pa: "ਕਾਲਾ ਜਾਮਨ" },
-    { en: "Rasgulla",          pa: "ਰਸਗੁੱਲਾ",          fav: true },
-    { en: "Rasmalai",          pa: "ਰਸਮਲਾਈ",           fav: true },
-    { en: "Cham Cham",         pa: "ਚਮ ਚਮ" },
-    { en: "Jalebi",            pa: "ਜਲੇਬੀ",            fav: true },
-    { en: "Imarti",            pa: "ਇਮਰਤੀ" },
-    { en: "Balushahi",         pa: "ਬਾਲੂਸ਼ਾਹੀ" },
+    { en: "Gulab Jamun",       pa: "ਗੁਲਾਬ ਜਾਮਨ", alias: ["gulabjamun","gulab jamon","gj","jamun"],       fav: true },
+    { en: "Kala Jamun",        pa: "ਕਾਲਾ ਜਾਮਨ", alias: ["kala jamon","kalajamun"] },
+    { en: "Rasgulla",          pa: "ਰਸਗੁੱਲਾ", alias: ["rasgula","rosogolla","rasagulla"],          fav: true },
+    { en: "Rasmalai",          pa: "ਰਸਮਲਾਈ", alias: ["ras malai","rasmalaai"],           fav: true },
+    { en: "Cham Cham",         pa: "ਚਮ ਚਮ", alias: ["chamcham","chum chum","chumchum"] },
+    { en: "Jalebi",            pa: "ਜਲੇਬੀ", alias: ["jilebi","jalabi","jalebee"],            fav: true },
+    { en: "Imarti",            pa: "ਇਮਰਤੀ", alias: ["jangiri","amriti"] },
+    { en: "Balushahi",         pa: "ਬਾਲੂਸ਼ਾਹੀ", alias: ["balushai","badusha"] },
     { en: "Ghewar",            pa: "ਘੇਵਰ" },
 
     // --- barfi family ---
-    { en: "Plain Barfi",       pa: "ਬਰਫ਼ੀ",             fav: true },
-    { en: "Kaju Katli",        pa: "ਕਾਜੂ ਕਤਲੀ",        fav: true },
-    { en: "Pista Barfi",       pa: "ਪਿਸਤਾ ਬਰਫ਼ੀ" },
-    { en: "Badam Barfi",       pa: "ਬਦਾਮ ਬਰਫ਼ੀ" },
-    { en: "Coconut Barfi",     pa: "ਨਾਰੀਅਲ ਬਰਫ਼ੀ" },
-    { en: "Anjeer Barfi",      pa: "ਅੰਜੀਰ ਬਰਫ਼ੀ" },
-    { en: "Dry Fruit Barfi",   pa: "ਡਰਾਈ ਫਰੂਟ ਬਰਫ਼ੀ" },
-    { en: "Khoya Barfi",       pa: "ਖੋਆ ਬਰਫ਼ੀ" },
-    { en: "Milk Cake",         pa: "ਮਿਲਕ ਕੇਕ",         fav: true },
-    { en: "Kalakand",          pa: "ਕਲਾਕੰਦ" },
-    { en: "Peda",              pa: "ਪੇੜਾ" },
+    { en: "Plain Barfi",       pa: "ਬਰਫ਼ੀ", alias: ["barfi","burfi","plain burfi","white barfi","milk barfi"],             fav: true },
+    { en: "Kaju Katli",        pa: "ਕਾਜੂ ਕਤਲੀ", alias: ["kaju barfi","kaju burfi","kaju katri","kaju katri","kaju"],        fav: true },
+    { en: "Pista Barfi",       pa: "ਪਿਸਤਾ ਬਰਫ਼ੀ", alias: ["pista burfi"] },
+    { en: "Badam Barfi",       pa: "ਬਦਾਮ ਬਰਫ਼ੀ", alias: ["badam burfi","almond barfi"] },
+    { en: "Coconut Barfi",     pa: "ਨਾਰੀਅਲ ਬਰਫ਼ੀ", alias: ["coconut burfi","nariyal barfi"] },
+    { en: "Anjeer Barfi",      pa: "ਅੰਜੀਰ ਬਰਫ਼ੀ", alias: ["anjeer burfi","fig barfi","anjir barfi"] },
+    { en: "Dry Fruit Barfi",   pa: "ਡਰਾਈ ਫਰੂਟ ਬਰਫ਼ੀ", alias: ["dryfruit barfi","dry fruit burfi"] },
+    { en: "Khoya Barfi",       pa: "ਖੋਆ ਬਰਫ਼ੀ", alias: ["khoa barfi","khoya burfi"] },
+    { en: "Milk Cake",         pa: "ਮਿਲਕ ਕੇਕ", alias: ["milkcake","milk cake barfi"],         fav: true },
+    { en: "Kalakand",          pa: "ਕਲਾਕੰਦ", alias: ["kalakhand","kalaakand"] },
+    { en: "Peda",              pa: "ਪੇੜਾ", alias: ["pera","pede","pedha"] },
     { en: "Mysore Pak",        pa: "ਮੈਸੂਰ ਪਾਕ" },
 
     // --- halwa / pinni ---
-    { en: "Sooji Halwa",       pa: "ਸੂਜੀ ਦਾ ਹਲਵਾ" },
-    { en: "Gajar Halwa",       pa: "ਗਾਜਰ ਦਾ ਹਲਵਾ" },
-    { en: "Moong Dal Halwa",   pa: "ਮੂੰਗ ਦਾਲ ਹਲਵਾ" },
-    { en: "Pinni",             pa: "ਪਿੰਨੀ",            fav: true },
+    { en: "Sooji Halwa",       pa: "ਸੂਜੀ ਦਾ ਹਲਵਾ", alias: ["suji halwa","sooji ka halwa","halwa"] },
+    { en: "Gajar Halwa",       pa: "ਗਾਜਰ ਦਾ ਹਲਵਾ", alias: ["gajar ka halwa","gajrela","carrot halwa"] },
+    { en: "Moong Dal Halwa",   pa: "ਮੂੰਗ ਦਾਲ ਹਲਵਾ", alias: ["moong halwa","mung dal halwa"] },
+    { en: "Pinni",             pa: "ਪਿੰਨੀ", alias: ["pinnis","pinniyan","atta pinni"],            fav: true },
     { en: "Panjiri",           pa: "ਪੰਜੀਰੀ" },
     { en: "Kheer",             pa: "ਖੀਰ" },
 
     // --- dry / papdi ---
-    { en: "Soan Papdi",        pa: "ਸੋਨ ਪਾਪੜੀ" },
+    { en: "Soan Papdi",        pa: "ਸੋਨ ਪਾਪੜੀ", alias: ["son papdi","soan papri","sohan papdi"] },
     { en: "Patisa",            pa: "ਪਤੀਸਾ" },
     { en: "Petha",             pa: "ਪੇਠਾ" },
     { en: "Shakkarpara",       pa: "ਸ਼ੱਕਰਪਾਰਾ" },
     { en: "Gur Papdi",         pa: "ਗੁੜ ਪਾਪੜੀ" },
-    { en: "Mixed Sweets Box",  pa: "ਮਿਕਸ ਮਿਠਾਈ ਡੱਬਾ",  fav: true },
+    { en: "Mixed Sweets Box",  pa: "ਮਿਕਸ ਮਿਠਾਈ ਡੱਬਾ", alias: ["mix mithai","mixed mithai","mix sweets","mixed sweets","assorted sweets","assorted mithai","mithai"],  fav: true },
 
     // --- namkeen / savoury ---
-    { en: "Samosa",            pa: "ਸਮੋਸਾ",            fav: true },
-    { en: "Pakora",            pa: "ਪਕੌੜਾ" },
-    { en: "Kachori",           pa: "ਕਚੌਰੀ" },
+    { en: "Samosa",            pa: "ਸਮੋਸਾ", alias: ["samose","samosey"], unit: "pcs",            fav: true },
+    { en: "Pakora",            pa: "ਪਕੌੜਾ", alias: ["pakoda","pakode","pakore","pakoras"] },
+    { en: "Kachori",           pa: "ਕਚੌਰੀ", alias: ["kachauri","kachoris"], unit: "pcs" },
     { en: "Mathi",             pa: "ਮੱਠੀ" },
-    { en: "Namkeen Mixture",   pa: "ਨਮਕੀਨ ਮਿਕਸਚਰ" },
+    { en: "Namkeen Mixture",   pa: "ਨਮਕੀਨ ਮਿਕਸਚਰ", alias: ["namkeen","mixture","bhujia"] },
     { en: "Dhokla",            pa: "ਢੋਕਲਾ" },
-    { en: "Paneer Pakora",     pa: "ਪਨੀਰ ਪਕੌੜਾ" },
-    { en: "Aloo Tikki",        pa: "ਆਲੂ ਟਿੱਕੀ" }
+    { en: "Paneer Pakora",     pa: "ਪਨੀਰ ਪਕੌੜਾ", alias: ["paneer pakoda","paneer pakode"], unit: "pcs" },
+    { en: "Aloo Tikki",        pa: "ਆਲੂ ਟਿੱਕੀ", alias: ["tikki","aloo tikkis"], unit: "pcs" }
   ];
 
   const UNITS = [

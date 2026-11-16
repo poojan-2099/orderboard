@@ -768,3 +768,44 @@ body.signed-out #nav { display: none; }
 /* The unlock screen's single password box deserves to be easy to hit on a TV
    remote keyboard or a tablet. */
 .input-lg { font-size: 1.15rem; padding: 14px 14px; letter-spacing: .08em; }
+
+/* ============================================================
+   Paste-a-message order entry
+   ============================================================ */
+
+.paste-card .section-head { gap: 8px; flex-wrap: wrap; }
+.paste-hint { margin: 0 0 10px; }
+.paste-box {
+  width: 100%; min-height: 170px; resize: vertical;
+  font-size: 1rem; line-height: 1.5;
+}
+.pv-card { margin-top: 16px; border-color: var(--brand); }
+.pv-head { margin-top: 0; }
+
+.input.need { border-color: var(--warn); background: var(--warn-bg); }
+.hint-warn { color: var(--warn); }
+
+.pv-items { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
+.pv-item {
+  display: grid;
+  grid-template-columns: 26px 86px 96px minmax(0,1fr) 40px;
+  gap: 9px; align-items: start;
+  padding: 8px; border: 1px solid var(--border); border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+.pv-item.warn { border-color: var(--warn); background: var(--warn-bg); }
+.pv-mark { padding-top: 10px; text-align: center; color: var(--ok); font-weight: 700; }
+.pv-name { padding-top: 9px; min-width: 0; overflow-wrap: anywhere; }
+.pv-skipped ul { margin: 4px 0 12px; padding-left: 20px; }
+.pv-create { flex: 1 1 auto; }
+
+details.manual { margin-top: 22px; }
+details.manual > summary {
+  cursor: pointer; padding: 12px 4px; font-weight: 600; color: var(--text-dim);
+}
+details.manual[open] > summary { margin-bottom: 8px; }
+
+@media (max-width: 640px) {
+  .pv-item { grid-template-columns: 22px 70px 84px minmax(0,1fr) 36px; gap: 6px; }
+  .pv-item .pv-name { grid-column: 2 / 5; padding-top: 0; }
+}

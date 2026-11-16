@@ -1,4 +1,8 @@
-/* OrderBoard — front desk order entry form. */
+/* OrderBoard — front desk order entry.
+   Normal way: paste the customer's WhatsApp / text message, check the
+   preview, press Create Order (parsing lives in js/parse.js).
+   The full typing form is still there underneath for anything unusual,
+   and is used on its own when editing an existing order. */
 (function () {
   const OB = (window.OB = window.OB || {});
   const u = () => OB.util;
@@ -7,6 +11,7 @@
   let itemRows = [];      // working list of line items
   let editingId = null;   // set when editing an existing order
   let host = null;
+  let draft = null;       // order read from the pasted message
 
   function blankRow() {
     return { qty: "", unit: "lb", item_en: "", item_pa: "", note: "" };
@@ -23,14 +28,229 @@
       : [blankRow(), blankRow()];
 
     const o = editOrder || {};
-    const today = u().todayISO();
+    draft = null;
 
     host.innerHTML = "";
-    host.appendChild(u().el("div", { class: "page" }, [
+    const page = u().el("div", { class: "page" }, [
       u().el("div", { class: "page-head" }, [
         u().el("h2", { text: editingId ? t("edit") + " #" + o.order_no : t("newOrderTitle") })
-      ]),
+      ])
+    ]);
+    host.appendChild(page);
 
+    if (editingId) {
+      page.appendChild(buildForm(o));
+    } else {
+      page.appendChild(buildPasteCard());
+      page.appendChild(u().el("div", { id: "pastePreview" }));
+      page.appendChild(u().el("details", { class: "manual", id: "manualBox" }, [
+        u().el("summary", { text: t("typeManually") }),
+        u().el("div", { id: "formHost" }, [buildForm(o)])
+      ]));
+    }
+    drawItems();
+  }
+
+  /* ---------- paste a message ---------- */
+
+  function buildPasteCard() {
+    const ta = u().el("textarea", {
+      class: "input paste-box", id: "pasteBox", rows: 7,
+      placeholder: t("pastePh"), spellcheck: "false",
+      oninput: u().debounce(() => readMessage(ta.value), 200)
+    });
+    // paste should show the result straight away, not after the debounce
+    ta.addEventListener("paste", () => setTimeout(() => readMessage(ta.value), 0));
+
+    const pasteBtn = u().el("button", {
+      type: "button", class: "btn btn-ghost", text: "📋  " + t("pasteBtn"),
+      onclick: async () => {
+        try {
+          const txt = await navigator.clipboard.readText();
+          ta.value = txt; readMessage(txt);
+        } catch (e) { u().toast(t("pasteDenied"), "warn", 5000); ta.focus(); }
+      }
+    });
+    if (!(navigator.clipboard && navigator.clipboard.readText)) pasteBtn.style.display = "none";
+
+    setTimeout(() => ta.focus(), 50);
+    return u().el("div", { class: "card paste-card" }, [
+      u().el("div", { class: "section-head" }, [
+        u().el("h3", { text: t("pasteTitle") }),
+        pasteBtn,
+        u().el("button", { type: "button", class: "btn btn-ghost", text: t("clearForm"),
+                           onclick: () => { ta.value = ""; readMessage(""); ta.focus(); } })
+      ]),
+      u().el("p", { class: "muted small paste-hint", text: t("pasteHint") }),
+      ta
+    ]);
+  }
+
+  function readMessage(text) {
+    const out = u().$("#pastePreview", host);
+    if (!out) return;
+    if (!String(text).trim()) { draft = null; out.innerHTML = ""; return; }
+    draft = OB.parse.order(text);
+    drawPreview();
+  }
+
+  function drawPreview() {
+    const out = u().$("#pastePreview", host);
+    out.innerHTML = "";
+    const d = draft;
+    const lang = OB.i18n.lang;
+
+    const box = (label, name, type, value, needed, placeholder) => {
+      const a = { class: "input" + (needed && !value ? " need" : ""), type: type,
+                  value: value || "",
+                  oninput: (e) => { d[name] = e.target.value; e.target.classList.remove("need"); } };
+      if (placeholder) a.placeholder = placeholder;
+      return u().el("label", { class: "field" }, [
+        u().el("span", { class: "label", text: label }),
+        u().el("input", a),
+        !d.found[name] && needed ? u().el("span", { class: "hint-warn small", text: t("checkThis") }) : null
+      ]);
+    };
+
+    // missing date/time: fall back to the same defaults as the form
+    if (!d.due_date) d.due_date = u().todayISO();
+    if (!d.due_time) d.due_time = "17:00";
+
+    const itemList = u().el("div", { class: "pv-items" });
+    if (!d.items.length) {
+      itemList.appendChild(u().el("p", { class: "hint-warn", text: t("noItemsFound") }));
+    }
+    d.items.forEach((it, idx) => {
+      const warn = !it.matched ? t("notInMenu") : (it.guessedQty ? t("qtyGuessed") : "");
+      itemList.appendChild(u().el("div", { class: "pv-item" + (warn ? " warn" : "") }, [
+        u().el("span", { class: "pv-mark", text: warn ? "⚠️" : "✓" }),
+        u().el("input", {
+          class: "input pv-qty", type: "number", step: "0.25", min: "0",
+          value: u().fmtQty(it.qty),
+          oninput: (e) => { it.qty = parseFloat(e.target.value) || 0; }
+        }),
+        u().el("select", { class: "input pv-unit", onchange: (e) => { it.unit = e.target.value; } },
+          OB.catalog.units.map((un) =>
+            u().el("option", Object.assign({ value: un.v }, it.unit === un.v ? { selected: "selected" } : {}),
+                   [lang === "pa" ? un.pa : un.en]))),
+        u().el("div", { class: "pv-name" }, [
+          u().el("strong", { text: OB.catalog.itemLabel(it, lang) }),
+          it.matched ? u().el("span", { class: "muted small",
+                                        text: " " + (lang === "pa" ? it.item_en : it.item_pa) }) : null,
+          it.note ? u().el("div", { class: "small", text: "📝 " + it.note }) : null,
+          warn ? u().el("div", { class: "hint-warn small", text: warn + "  ·  “" + it.raw + "”" }) : null
+        ]),
+        u().el("button", {
+          type: "button", class: "icon-btn danger", title: t("removeItem"), text: "✕",
+          onclick: () => { d.items.splice(idx, 1); drawPreview(); }
+        })
+      ]));
+    });
+
+    const createBtn = u().el("button", {
+      type: "button", class: "btn btn-primary btn-lg pv-create",
+      text: "✓  " + t("createOrder"),
+      onclick: () => createFromDraft(createBtn)
+    });
+
+    out.appendChild(u().el("div", { class: "card pv-card" }, [
+      u().el("h4", { class: "pv-head", text: t("readFromMsg") }),
+      u().el("div", { class: "grid g3" }, [
+        box(t("customerName"), "customer_name", "text", d.customer_name, true,
+            lang === "pa" ? "ਗਾਹਕ ਦਾ ਨਾਂ" : "Customer name"),
+        box(t("customerPhone"), "customer_phone", "tel", d.customer_phone, false),
+        box(t("orderName"), "order_name", "text", d.order_name, false, t("orderNamePh"))
+      ]),
+      u().el("div", { class: "grid g3" }, [
+        box(t("dueDate"), "due_date", "date", d.due_date, true),
+        box(t("dueTime"), "due_time", "time", d.due_time, true),
+        u().el("label", { class: "field urgent-field" }, [
+          u().el("span", { class: "label", text: " " }),
+          u().el("label", { class: "switch" }, [
+            u().el("input", Object.assign({ type: "checkbox",
+                                            onchange: (e) => { d.urgent = e.target.checked; } },
+                                          d.urgent ? { checked: "checked" } : {})),
+            u().el("span", { class: "switch-ui" }),
+            u().el("span", { class: "switch-text", text: "⚠️ " + t("urgent") })
+          ])
+        ])
+      ]),
+      u().el("div", { class: "section-head" }, [
+        u().el("h3", { text: t("items") }),
+        u().el("span", { class: "muted small", text: t("items_n", d.items.length) })
+      ]),
+      itemList,
+      u().el("label", { class: "field" }, [
+        u().el("span", { class: "label", text: t("notes") }),
+        u().el("textarea", { class: "input", rows: 2,
+                             oninput: (e) => { d.notes = e.target.value; } }, [d.notes || ""])
+      ]),
+      d.skipped.length ? u().el("div", { class: "pv-skipped" }, [
+        u().el("span", { class: "muted small", text: t("notUnderstood") + ":" }),
+        u().el("ul", {}, d.skipped.map((l) => u().el("li", { class: "muted small", text: l })))
+      ]) : null,
+      u().el("div", { class: "form-actions" }, [
+        createBtn,
+        u().el("button", { type: "button", class: "btn btn-ghost btn-lg", text: t("editInForm"),
+                           onclick: openDraftInForm })
+      ])
+    ]));
+  }
+
+  function draftOrder() {
+    return {
+      order_date: u().todayISO(),
+      due_date: draft.due_date || u().todayISO(),
+      due_time: draft.due_time || null,
+      customer_name: String(draft.customer_name || "").trim(),
+      customer_phone: String(draft.customer_phone || "").trim() || null,
+      order_name: String(draft.order_name || "").trim() || null,
+      notes: String(draft.notes || "").trim() || null,
+      urgent: !!draft.urgent,
+      created_by: u().station()
+    };
+  }
+
+  function draftItems() {
+    return draft.items.filter((i) => i.qty > 0).map((i) => ({
+      qty: i.qty, unit: i.unit || "lb",
+      item_en: i.item_en, item_pa: i.item_pa || "", note: i.note || ""
+    }));
+  }
+
+  function createFromDraft(btn) {
+    const order = draftOrder();
+    if (!order.customer_name) {
+      u().toast(t("requiredCustomer"), "error");
+      const f = u().$("#pastePreview input", host); if (f) f.focus();
+      return;
+    }
+    const items = draftItems();
+    if (!items.length) { u().toast(t("requiredItems"), "error"); return; }
+    submit(order, items, btn, "✓  " + t("createOrder"));
+  }
+
+  // hand the pasted order to the full form for anything the preview can't do
+  function openDraftInForm() {
+    const order = draftOrder();
+    itemRows = draftItems().map((i) => ({
+      qty: u().fmtQty(i.qty), unit: i.unit, item_en: i.item_en, item_pa: i.item_pa, note: i.note
+    }));
+    if (!itemRows.length) itemRows.push(blankRow());
+    const fh = u().$("#formHost", host);
+    fh.innerHTML = "";
+    fh.appendChild(buildForm(order));
+    drawItems();
+    const mb = u().$("#manualBox", host);
+    mb.open = true;
+    mb.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  /* ---------- the full form ---------- */
+
+  function buildForm(o) {
+    const today = u().todayISO();
+    return (
       u().el("form", { class: "card form", id: "orderForm",
                        onsubmit: (e) => { e.preventDefault(); save(); } }, [
 
@@ -97,9 +317,7 @@
                              onclick: () => render(host, null) })
         ])
       ])
-    ]));
-
-    drawItems();
+    );
   }
 
   /* ---------- small builders ---------- */
@@ -255,7 +473,10 @@
       created_by: u().station()
     };
 
-    const btn = f.querySelector('button[type="submit"]');
+    submit(order, items, f.querySelector('button[type="submit"]'), t("saveOrder"));
+  }
+
+  async function submit(order, items, btn, label) {
     btn.disabled = true;
     btn.textContent = t("loading");
 
@@ -282,7 +503,7 @@
       }
     } finally {
       btn.disabled = false;
-      btn.textContent = t("saveOrder");
+      btn.textContent = label;
     }
   }
 
