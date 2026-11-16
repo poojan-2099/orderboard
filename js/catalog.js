@@ -10,7 +10,7 @@
     // --- ladoo family ---
     { en: "Besan Ladoo",       pa: "ਬੇਸਨ ਲੱਡੂ", alias: ["besan laddu","besan ladu","besan ke ladoo"],        fav: true },
     { en: "Boondi Ladoo",      pa: "ਬੂੰਦੀ ਲੱਡੂ", alias: ["bundi ladoo","boondi laddu","bundi laddu","boondi"],        fav: true },
-    { en: "Motichoor Ladoo",   pa: "ਮੋਤੀਚੂਰ ਲੱਡੂ", alias: ["motichur ladoo","motichoor laddu","motichoor"] },
+    { en: "Motichoor Ladoo",   pa: "ਮੋਤੀਚੂਰ ਲੱਡੂ", alias: ["motichur ladoo","motichur","motichoor ladu","motichoor laddu","motichoor"] },
     { en: "Atta Ladoo",        pa: "ਆਟਾ ਲੱਡੂ", alias: ["aata ladoo","atte ke ladoo"] },
     { en: "Gond Ladoo",        pa: "ਗੋਂਦ ਲੱਡੂ", alias: ["gond laddu","gond ke ladoo","gond"] },
     { en: "Coconut Ladoo",     pa: "ਨਾਰੀਅਲ ਲੱਡੂ" },

@@ -60,6 +60,7 @@
 
   // words that cannot be a person's name ("I'm looking…", "this is for…")
   const NOT_NAME = new Set(("looking ordering wondering going trying planning calling writing " +
+    "call text msg message ping contact reach me sweets sweet mithai snacks food stuff " +
     "for the a an to my our your about regarding re order interested not here just also from " +
     "available open sorry fine good great ok okay sure ready done in on at with need want " +
     "hoping asking texting messaging coming").split(" "));
@@ -139,6 +140,18 @@
       });
     });
     return KEYS;
+  }
+
+  // single words that appear in catalog names: ladoo, barfi, halwa…
+  let SW = null;
+  function SWEET_WORDS() {
+    if (SW) return SW;
+    SW = new Set();
+    keys();
+    OB.catalog.sweets.forEach((s) => [s.en].concat(s.alias || []).forEach((n) =>
+      n.split(/\s+/).forEach((w) => { if (w.length > 3) SW.add(canonWord(w)); })));
+    ["plain", "milk", "white", "dry", "fruit", "cake", "box", "mixed", "mix"].forEach((w) => SW.delete(w));
+    return SW;
   }
 
   /* Find the catalog item inside a list of words. Tries every run of 1-4
@@ -343,11 +356,12 @@
         note: note, matched: true, guessedQty: qty == null, raw: chunk.trim()
       };
     }
-    // not in the catalog: only trust it if it clearly has a quantity AND unit
-    if (qty != null && unit) {
+    // not in the catalog: only trust it if it has a quantity AND either a unit
+    // or a word we know is a sweet ("5 laddu" — which ladoo? let the desk pick)
+    if (qty != null && (unit || words.some((w) => SWEET_WORDS().has(canonWord(w))))) {
       const name = titleCase(words.join(" "));
       if (!/\p{L}/u.test(name) || name.length < 3) return null;
-      return { qty: qty, unit: unit, item_en: name, item_pa: "", note: note,
+      return { qty: qty, unit: unit || "lb", item_en: name, item_pa: "", note: note,
                matched: false, raw: chunk.trim() };
     }
     return null;
@@ -427,6 +441,7 @@
       }
 
       // date + time anywhere on the line
+      line = line.replace(/\bsat\s*sri\s*akal\b(\s*ji)?/ig, " ");
       const dt = findDate(line, today);
       if (dt) {
         if (!out.due_date) { out.due_date = iso(dt.date); out.found.due_date = true; }
@@ -457,6 +472,7 @@
             const words = om[1].split(/\s+/);
             // keep "Sharma wedding", drop "my wedding" / "daughter's" stays
             const keepFirst = words.length > 1 && !FILLER.has(words[0].toLowerCase()) &&
+                              !SWEET_WORDS().has(canonWord(words[0])) &&
                               !NOT_NAME.has(words[0].toLowerCase());
             out.order_name = titleCase(keepFirst ? om[1] : occ);
             out.found.order_name = true;
@@ -496,7 +512,11 @@
       const got = parts.map(parseItem);
       if (got.some(Boolean)) {
         got.forEach((it, i) => {
-          if (it) out.items.push(it);
+          const prior = it && it.matched &&
+            /\b(make\s+it|change|instead|actually|correction|update|not\s+\d)/i.test(line) &&
+            out.items.find((x) => x.item_en === it.item_en);
+          if (prior) Object.assign(prior, it, { corrected: true });
+          else if (it) out.items.push(it);
           else if (parts[i].replace(/[^\p{L}]/gu, "").length > 2 && !CHAT_RE.test(parts[i])) {
             // "5 lb ladoo, less sweet" — attach to the item before it
             const prev = out.items[out.items.length - 1];
