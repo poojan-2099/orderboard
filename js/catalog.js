@@ -20,7 +20,7 @@
     { en: "Kala Jamun",        pa: "ਕਾਲਾ ਜਾਮਨ", alias: ["kala jamon","kalajamun"] },
     { en: "Rasgulla",          pa: "ਰਸਗੁੱਲਾ", alias: ["rasgula","rosogolla","rasagulla"],          fav: true },
     { en: "Rasmalai",          pa: "ਰਸਮਲਾਈ", alias: ["ras malai","rasmalaai"],           fav: true },
-    { en: "Cham Cham",         pa: "ਚਮ ਚਮ", alias: ["chamcham","chum chum","chumchum"] },
+    { en: "Cham Cham",         pa: "ਚਮ ਚਮ", alias: ["chamcham","chum chum","chumchum","cham"] },
     { en: "Jalebi",            pa: "ਜਲੇਬੀ", alias: ["jilebi","jalabi","jalebee"],            fav: true },
     { en: "Imarti",            pa: "ਇਮਰਤੀ", alias: ["jangiri","amriti"] },
     { en: "Balushahi",         pa: "ਬਾਲੂਸ਼ਾਹੀ", alias: ["balushai","badusha"] },
@@ -38,6 +38,8 @@
     { en: "Milk Cake",         pa: "ਮਿਲਕ ਕੇਕ", alias: ["milkcake","milk cake barfi"],         fav: true },
     { en: "Kalakand",          pa: "ਕਲਾਕੰਦ", alias: ["kalakhand","kalaakand"] },
     { en: "Peda",              pa: "ਪੇੜਾ", alias: ["pera","pede","pedha"] },
+    { en: "Dhoda",             pa: "ਢੋਡਾ", alias: ["dhooda","dhodha","dodha","doda","dhoda barfi"] },
+    { en: "Gujiya",            pa: "ਗੁਜੀਆ", alias: ["gujia","gujhiya","gujiyas","karanji"] },
     { en: "Mysore Pak",        pa: "ਮੈਸੂਰ ਪਾਕ" },
 
     // --- halwa / pinni ---
@@ -64,7 +66,17 @@
     { en: "Namkeen Mixture",   pa: "ਨਮਕੀਨ ਮਿਕਸਚਰ", alias: ["namkeen","mixture","bhujia"] },
     { en: "Dhokla",            pa: "ਢੋਕਲਾ" },
     { en: "Paneer Pakora",     pa: "ਪਨੀਰ ਪਕੌੜਾ", alias: ["paneer pakoda","paneer pakode"], unit: "pcs" },
-    { en: "Aloo Tikki",        pa: "ਆਲੂ ਟਿੱਕੀ", alias: ["tikki","aloo tikkis"], unit: "pcs" }
+    { en: "Aloo Tikki",        pa: "ਆਲੂ ਟਿੱਕੀ", alias: ["tikki","aloo tikkis"], unit: "pcs" },
+
+    // --- meals ---
+    { en: "Veg Biryani",       pa: "ਵੈਜ ਬਿਰਯਾਨੀ", alias: ["veg biriyani","vegetable biryani","veg briyani"], unit: "tray" },
+    { en: "Chicken Biryani",   pa: "ਚਿਕਨ ਬਿਰਯਾਨੀ", alias: ["chicken biriyani","chicken briyani"], unit: "tray" },
+
+    // --- drinks ---
+    { en: "Chai",              pa: "ਚਾਹ", alias: ["tea","masala chai","masala tea","cha","chaa","chah"], unit: "cup" },
+    { en: "Coffee",            pa: "ਕੌਫ਼ੀ", alias: ["cofee","kaafi"], unit: "cup" },
+    { en: "Lassi",             pa: "ਲੱਸੀ", alias: ["sweet lassi","meethi lassi"], unit: "cup" },
+    { en: "Mango Lassi",       pa: "ਅੰਬ ਲੱਸੀ", alias: ["mango lasi"], unit: "cup" }
   ];
 
   const UNITS = [
@@ -75,7 +87,8 @@
     { v: "dozen",  en: "dozen",  pa: "ਦਰਜਨ" },
     { v: "box",    en: "box",    pa: "ਡੱਬਾ" },
     { v: "tray",   en: "tray",   pa: "ਟ੍ਰੇ" },
-    { v: "plate",  en: "plate",  pa: "ਪਲੇਟ" }
+    { v: "plate",  en: "plate",  pa: "ਪਲੇਟ" },
+    { v: "cup",    en: "cup",    pa: "ਕੱਪ" }
   ];
 
   function norm(s) {

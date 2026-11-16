@@ -809,3 +809,6 @@ details.manual[open] > summary { margin-bottom: 8px; }
   .pv-item { grid-template-columns: 22px 70px 84px minmax(0,1fr) 36px; gap: 6px; }
   .pv-item .pv-name { grid-column: 2 / 5; padding-top: 0; }
 }
+.pv-suggest { margin-top: 6px; border-color: var(--warn); color: var(--warn); }
+.pv-addnote { padding: 3px 10px; font-size: .8rem; margin-left: 4px; }
+.pv-skipped li { margin-bottom: 4px; }

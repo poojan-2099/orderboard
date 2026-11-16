@@ -26,9 +26,10 @@
     [/^(dozens?|dz|doz|ਦਰਜਨ)$/, "dozen"],
     [/^(box|boxes|packets?|pkts?|dabba|dabbe|ਡੱਬਾ|ਡੱਬੇ)$/, "box"],
     [/^(trays?)$/, "tray"],
-    [/^(plates?)$/, "plate"]
+    [/^(plates?)$/, "plate"],
+    [/^(cups?|glass(es)?|ਕੱਪ)$/, "cup"]
   ];
-  const UNIT_RE_SRC = "lbs?|pounds?|#|kgs?|kilos?|kilograms?|gms?|grams?|g|pcs?|pieces?|nos?|dozens?|dz|doz|box(?:es)?|packets?|pkts?|dabba|dabbe|trays?|plates?|ਪੌਂਡ|ਪਾਊਂਡ|ਕਿਲੋ|ਗ੍ਰਾਮ|ਪੀਸ|ਦਰਜਨ|ਡੱਬਾ|ਡੱਬੇ";
+  const UNIT_RE_SRC = "lbs?|pounds?|#|kgs?|kilos?|kilograms?|gms?|grams?|g|pcs?|pieces?|nos?|dozens?|dz|doz|box(?:es)?|packets?|pkts?|dabba|dabbe|trays?|plates?|cups?|glass(?:es)?|ਕੱਪ|ਪੌਂਡ|ਪਾਊਂਡ|ਕਿਲੋ|ਗ੍ਰਾਮ|ਪੀਸ|ਦਰਜਨ|ਡੱਬਾ|ਡੱਬੇ";
 
   const NUM_WORDS = {
     half: 0.5, quarter: 0.25, a: 1, an: 1, one: 1, two: 2, three: 3, four: 4, five: 5,
@@ -50,7 +51,7 @@
   const FILLER = new Set(("i we need want would like to get please pls plz can could you send " +
     "make order ordering also and of the for me us my our some kindly add want required " +
     "give have will take book x each total hi hello hey ok okay thanks thank i'm im i’m looking " +
-    "is it possible just wondering hoping items item list details pickup pick up order: ji").split(" "));
+    "is it possible just wondering hoping come coming items item list details pickup pick up order: ji").split(" "));
 
   // a line that is only one of these is chit-chat, not order content
   const CHAT_RE = /^(hi+|hello|hey|hlo|sat\s*sri\s*akal|ssa|good\s+(morning|afternoon|evening)|thanks?|thank\s*you|thx|ty|ok(ay)?|k|sure|yes|no|please|pls|regards|bye|done|noted|perfect|great|cool|[\s\p{Extended_Pictographic}.!,]*)$/iu;
@@ -168,13 +169,14 @@
         keys().forEach((k) => {
           let sc = Math.max(similarity(w, k.key), wr ? similarity(wr, k.key) - 0.01 : 0);
           if (k.key.length <= 3 && w !== k.key) sc = 0;   // "gj" must be exact
-          if (sc < 0.8) return;
+          if (sc < (k.key.length <= 6 ? 0.84 : 0.8)) return;   // "tikka" is not "tikki"
           // prefer exact, then longer runs, then closer spelling
-          const rank = sc * 10 + len + (sc === 1 ? 5 : 0);
+          const rank = len * 4 + sc * 10 + (sc === 1 ? 2 : 0);
           if (!best || rank > best.rank) best = { entry: k.entry, rank: rank, start: i, len: len };
         });
       }
-      if (best && best.rank >= 15) break;   // an exact match — stop looking
+      // an exact match at this length can't be beaten by a shorter run
+      if (best && best.len === len && best.rank >= len * 4 + 12) break;
     }
     return best;
   }
@@ -269,6 +271,25 @@
     return null;
   }
 
+  /* "1-2pm", "11-1pm", "4:30 to 5 pm" -> start time, plus the range for the notes.
+     Needs am/pm on at least one side so "1-2 lb" is never a time. */
+  function findTimeRange(s) {
+    const m = s.match(/\b(\d{1,2})(?:[:.](\d{2}))?\s*(a\.?\s?m\.?|p\.?\s?m\.?)?\s*(?:-|–|—|to|till|until)\s*(\d{1,2})(?:[:.](\d{2}))?\s*(a\.?\s?m\.?|p\.?\s?m\.?)(?=\W|$)/i);
+    if (!m) return null;
+    const h1 = +m[1], h2 = +m[4];
+    if (h1 < 1 || h1 > 12 || h2 < 1 || h2 > 12) return null;
+    let h;
+    if (m[3]) h = (h1 % 12) + (/p/i.test(m[3]) ? 12 : 0);
+    else {
+      // start = the latest of "h1 am" / "h1 pm" that is still before the end:
+      // "11-12pm" -> 11 am, "11-1pm" -> 11 am, "1-2pm" -> 1 pm
+      const end = (h2 % 12) + (/p/i.test(m[6]) ? 12 : 0);
+      const am = h1 % 12, pm = am + 12;
+      h = pm < end ? pm : am;
+    }
+    return { time: hhmm(h, m[2]), text: m[0], range: m[0].replace(/\s+/g, " ").trim() };
+  }
+
   /* Returns { time: "HH:MM", text } or null. */
   function findTime(s) {
     let m;
@@ -322,6 +343,7 @@
     s = s.replace(/\(([^)]*)\)/g, (_, n) => { note += (note ? ", " : "") + n.trim(); return " "; });
 
     const q = s.match(QTY_RE);
+    const leadingQty = q && !s.slice(0, q.index).trim();
     let qty = null, unit = null;
     if (q) {
       qty = parseNum(q[1]);
@@ -345,9 +367,24 @@
 
     const hit = matchItem(words);
     if (hit) {
-      const before = words.slice(0, hit.start).join(" ");
-      const rest = [NOTE_HINT.test(before) ? before : "",
-                    words.slice(hit.start + hit.len).join(" ")].filter(Boolean).join(" ");
+      const beforeW = words.slice(0, hit.start)
+        .filter((w) => !NOT_NAME.has(w.toLowerCase()) && !/^(sorry|oh|yes|so|then|also)$/i.test(w));
+      const before = beforeW.join(" ");
+      const after = words.slice(hit.start + hit.len).join(" ");
+      // "Roated burfi" / "Pink cham": a word in front that isn't a kitchen
+      // instruction is part of the name — keep what they typed, flag it,
+      // and offer the catalog item as a suggestion
+      if (before && !NOTE_HINT.test(before)) {
+        if (after) note = after + (note ? ", " + note : "");
+        return {
+          qty: qty == null ? 1 : qty,
+          unit: unit || hit.entry.unit || "lb",
+          item_en: titleCase(beforeW.concat(words.slice(hit.start, hit.start + hit.len)).join(" ")),
+          item_pa: "", note: note, matched: false, guessedQty: qty == null,
+          suggest: hit.entry, raw: chunk.trim()
+        };
+      }
+      const rest = [before, after].filter(Boolean).join(" ");
       if (rest) note = rest + (note ? ", " + note : "");
       return {
         qty: qty == null ? 1 : qty,
@@ -358,13 +395,32 @@
     }
     // not in the catalog: only trust it if it has a quantity AND either a unit
     // or a word we know is a sweet ("5 laddu" — which ladoo? let the desk pick)
-    if (qty != null && (unit || words.some((w) => SWEET_WORDS().has(canonWord(w))))) {
+    if (qty != null && (unit || words.some((w) => SWEET_WORDS().has(canonWord(w))) ||
+                        (leadingQty && words.length <= 4))) {
       const name = titleCase(words.join(" "));
       if (!/\p{L}/u.test(name) || name.length < 3) return null;
-      return { qty: qty, unit: unit || "lb", item_en: name, item_pa: "", note: note,
-               matched: false, raw: chunk.trim() };
+      return { qty: qty, unit: unit || (qty >= 20 && qty % 1 === 0 ? "pcs" : "lb"), item_en: name, item_pa: "", note: note,
+               suggest: suggestFor(words), matched: false, raw: chunk.trim() };
     }
     return null;
+  }
+
+  // the menu item that shares a word with what was typed: "Gajar" -> Gajar Halwa
+  function suggestFor(words) {
+    const typed = words.map((w) => compact(canonWord(w))).filter((w) => w.length >= 4);
+    let best = null;
+    OB.catalog.sweets.forEach((s) => {
+      [s.en].concat(s.alias || []).forEach((n) => {
+        n.split(/\s+/).forEach((w) => {
+          const c = compact(canonWord(w));
+          typed.forEach((t) => {
+            const sc = similarity(t, c);
+            if (sc >= 0.8 && (!best || sc > best.sc || (sc === best.sc && s.fav && !best.s.fav))) best = { s: s, sc: sc };
+          });
+        });
+      });
+    });
+    return best ? best.s : null;
   }
 
   function looksLikeName(s) {
@@ -379,6 +435,8 @@
   }
 
   function cleanName(s) {
+    s = s.replace(/(?:['’]s)?\s+(?:ka\s+|di\s+|da\s+)?order(?:\s+for)?\s*$/i, "")
+         .replace(/^order\s+(?:for|from)\s+/i, "");
     return titleCase(s.trim().replace(/[.,!:;]+$/, "").split(/\s+/).slice(0, 4).join(" "));
   }
 
@@ -408,12 +466,14 @@
 
     lines.forEach((orig) => {
       let line = orig.replace(/\s+/g, " ");
+      let shown = orig;   // what to show in "not understood" (no WhatsApp prefix)
 
       // WhatsApp copy: strip "[date, time] Sender:" and remember the sender
       const wa = line.match(WA_PREFIX);
       if (wa) {
         senders.push(wa[1].trim());
         line = wa[2].trim();
+        shown = line;
         if (!line || /^<(media omitted|attached)/i.test(line)) return;
       }
 
@@ -438,6 +498,14 @@
         if (!out.customer_phone) { out.customer_phone = ph.value; out.found.customer_phone = true; }
         line = line.replace(ph.text, " ");
         line = line.replace(/\b(phone|ph|mobile|mob|cell|number|no|contact|tel|whatsapp)\b\.?\s*[:\-#]?\s*/ig, " ");
+      }
+
+      if (/\bdeliver(y|ed|ing)?\b/i.test(line)) out.delivery = true;
+      if (/\b(pick\s*-?\s*up|pickup|collect(ion)?)\b/i.test(line)) out.pickup = true;
+      const tr = findTimeRange(line);
+      if (tr) {
+        if (!out.due_time) { out.due_time = tr.time; out.found.due_time = true; out.timeRange = tr.range; }
+        line = line.replace(tr.text, " ");
       }
 
       // date + time anywhere on the line
@@ -528,9 +596,10 @@
         return;
       }
 
-      if (!nameFrom && looksLikeName(line)) { setName(line, 1); return; }
+      const asName = line.replace(/(?:['’]s)?\s+(?:ka\s+|di\s+|da\s+)?order\s*$/i, "");
+      if (!nameFrom && asName && looksLikeName(asName)) { setName(asName, 1); return; }
       if (NOTE_HINT.test(line)) { notes.push(line); return; }
-      out.skipped.push(orig);
+      out.skipped.push(shown);
     });
 
     // WhatsApp sender name, when the message didn't say who it was
@@ -543,6 +612,9 @@
       else if (!/^(you|me)$/i.test(top)) setName(top.replace(/[~]/g, ""), 2);
     }
 
+    // delivery / time window go to the top of the kitchen notes
+    const head = [out.delivery ? "Delivery" : (out.pickup && out.timeRange ? "Pickup" : ""), out.timeRange ? out.timeRange : ""].filter(Boolean);
+    if (head.length) notes.unshift(head.join(" ") );
     out.notes = notes.join("\n");
     out.found.notes = !!out.notes;
     return out;

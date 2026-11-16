@@ -33,6 +33,7 @@
       checkThis: "not in the message \u2014 please check",
       noItemsFound: "No items found. Check the message, or use the full form below.",
       readFromMsg: "Read from the message",
+      useSuggestion: "Use:", addToNotes: "add to notes",
       // board
       boardTitle: "Kitchen Orders", noOrders: "No pending orders",
       due: "Due", overdue: "OVERDUE", today: "Today", tomorrow: "Tomorrow",
@@ -117,6 +118,7 @@
       checkThis: "ਮੈਸੇਜ ਵਿੱਚ ਨਹੀਂ \u2014 ਚੈੱਕ ਕਰੋ",
       noItemsFound: "ਕੋਈ ਸਮਾਨ ਨਹੀਂ ਲੱਭਿਆ। ਮੈਸੇਜ ਚੈੱਕ ਕਰੋ, ਜਾਂ ਹੇਠਾਂ ਪੂਰਾ ਫ਼ਾਰਮ ਵਰਤੋ।",
       readFromMsg: "ਮੈਸੇਜ ਤੋਂ ਪੜ੍ਹਿਆ",
+      useSuggestion: "ਇਹ ਲਓ:", addToNotes: "ਨੋਟ ਵਿੱਚ ਜੋੜੋ",
       boardTitle: "ਰਸੋਈ ਦੇ ਆਰਡਰ", noOrders: "ਕੋਈ ਆਰਡਰ ਬਾਕੀ ਨਹੀਂ",
       due: "ਦੇਣਾ ਹੈ", overdue: "ਸਮਾਂ ਨਿਕਲ ਗਿਆ", today: "ਅੱਜ", tomorrow: "ਕੱਲ੍ਹ",
       start: "ਸ਼ੁਰੂ ਕਰੋ", markDone: "ਪੂਰਾ ਹੋ ਗਿਆ", comment: "ਟਿੱਪਣੀ",

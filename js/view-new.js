@@ -138,7 +138,17 @@
           it.matched ? u().el("span", { class: "muted small",
                                         text: " " + (lang === "pa" ? it.item_en : it.item_pa) }) : null,
           it.note ? u().el("div", { class: "small", text: "📝 " + it.note }) : null,
-          warn ? u().el("div", { class: "hint-warn small", text: warn + "  ·  “" + it.raw + "”" }) : null
+          warn ? u().el("div", { class: "hint-warn small", text: warn + "  ·  “" + it.raw + "”" }) : null,
+          // one tap to swap a flagged item for the menu item it probably is
+          !it.matched && it.suggest ? u().el("button", {
+            type: "button", class: "chip pv-suggest",
+            text: t("useSuggestion") + " " + (lang === "pa" ? it.suggest.pa : it.suggest.en),
+            onclick: () => {
+              it.item_en = it.suggest.en; it.item_pa = it.suggest.pa; it.matched = true;
+              if (!/\d/.test(it.raw) && it.suggest.unit) it.unit = it.suggest.unit;
+              drawPreview();
+            }
+          }) : null
         ]),
         u().el("button", {
           type: "button", class: "icon-btn danger", title: t("removeItem"), text: "✕",
@@ -187,7 +197,17 @@
       ]),
       d.skipped.length ? u().el("div", { class: "pv-skipped" }, [
         u().el("span", { class: "muted small", text: t("notUnderstood") + ":" }),
-        u().el("ul", {}, d.skipped.map((l) => u().el("li", { class: "muted small", text: l })))
+        u().el("ul", {}, d.skipped.map((l, i) => u().el("li", { class: "muted small" }, [
+          l + "  ",
+          u().el("button", {
+            type: "button", class: "chip pv-addnote", text: "+ " + t("addToNotes"),
+            onclick: () => {
+              d.notes = (d.notes ? d.notes + "\n" : "") + l;
+              d.skipped.splice(i, 1);
+              drawPreview();
+            }
+          })
+        ])))
       ]) : null,
       u().el("div", { class: "form-actions" }, [
         createBtn,
